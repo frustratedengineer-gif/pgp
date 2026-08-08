@@ -1,0 +1,13 @@
+# Week-3 model: the Lifetime head alone, no importance/future-utility/action
+# heads and no feature fusion yet (single BGE embedding -> hazard score).
+# This is the ablation-style "survival_only" cell of the eventual joint
+# model comparison; right now it's also just "the model" since the other
+# heads don't exist yet (see src/memorylife/heads/).
+name: survival_only
+encoder: bge_base
+loss: cox_partial  # src/memorylife/losses/cox_partial.py (pycox CoxPH)
+
+net:
+  hidden_dims: [256, 64]
+  dropout: [0.2, 0.1]
+  batch_norm: true

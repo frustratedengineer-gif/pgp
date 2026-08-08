@@ -1,0 +1,38 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+
+# data: keep loaders, splits and samples only
+data/raw/*
+data/interim/*
+data/processed/*
+!data/**/.gitkeep
+!data/samples/**
+!data/splits/**
+
+# artefacts
+*.ckpt
+*.pt
+*.bin
+*.faiss
+*.sqlite
+wandb/
+outputs/
+lightning_logs/
+# ...except: this checkpoint is a small MLP head (<1MB), not a foundation
+# model -- cheap enough to commit directly instead of pushing to a model hub.
+!artifacts/survival_model_net.pt
+
+# artifacts/embeddings: regenerable from data/processed + scripts/train.py
+# (~31MB for the full train split) -- not worth committing. Baseline score
+# JSONs are small and reviewer-useful, so those ARE committed.
+artifacts/embeddings/*.npy
+artifacts/embeddings/*.txt
+
+# results: keep committed tables/figures, ignore scratch
+results/raw/*
+!results/raw/.gitkeep

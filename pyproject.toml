@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memorylife"
+version = "0.3.0"
+description = "MemoryLifeBench: memory lifetime prediction as a time-to-event problem"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+dependencies = [
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "sentence-transformers",
+    "transformers",
+    "lifelines",
+    "pycox",
+    "torchtuples",
+    "pyarrow",
+    "requests",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "black", "ruff", "isort", "pre-commit"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

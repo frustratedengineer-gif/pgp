@@ -1,0 +1,8 @@
+# baselines/llm_prompted_ttl.py
+model: qwen2.5:7b-instruct
+serving: ollama_local
+url: http://127.0.0.1:11434/api/generate
+temperature: 0.0
+num_predict: 16
+fallback_ttl_days: 7.0
+workers: 6

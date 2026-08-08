@@ -1,0 +1,10 @@
+# scripts/train.py defaults, as actually run for the Week-3 results.
+seed: 42
+batch_size: 256
+epochs: 200
+patience: 15          # EarlyStopping on val loss; best-weight restore is
+                       # torchtuples' default (load_best=True)
+lr: 0.001
+weight_decay: 0.0001
+optimizer: adam
+device: cuda

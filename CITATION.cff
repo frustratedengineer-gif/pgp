@@ -1,0 +1,13 @@
+# TODO: placeholder -- fill in real author names/affiliations/DOI once the
+# paper (Week 6) exists. Keeping this file present now so the GitHub "Cite
+# this repository" button works as soon as it's filled in.
+cff-version: 1.2.0
+message: "If you use this benchmark or model, please cite it as below (placeholder -- update after the paper is written)."
+title: "MemoryLifeBench: Memory Lifetime Prediction as a Time-to-Event Problem"
+authors:
+  - family-names: "TODO"
+    given-names: "TODO"
+date-released: 2026-08-08
+version: "0.3.0"
+repository-code: "TODO: repo URL once pushed"
+license: MIT

@@ -1,0 +1,15 @@
+# Root config. NOTE (known gap): scripts/*.py currently take these values as
+# argparse defaults, not via Hydra/OmegaConf composition -- these YAMLs are
+# the documented record of what Week-3 actually ran, not yet the live config
+# path. Wiring Hydra is on the Week 4+ list; see docs/reproducibility.md.
+seed: 42
+data_dir: data/processed
+emb_dir: artifacts/embeddings
+scores_dir: artifacts/scores
+results_dir: results
+
+defaults:
+  - encoder: bge_base
+  - model: survival_only
+  - train: default
+  - eval: survival

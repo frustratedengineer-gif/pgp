@@ -1,0 +1,10 @@
+# scripts/evaluate.py
+metric: concordance_index   # src/memorylife/evaluation/survival_metrics.py
+splits: [val, test]
+methods:
+  - our_model
+  - llm_prompted_ttl
+  - bucket_classifier
+  - heuristic_ttl
+# Not yet implemented (see src/memorylife/evaluation/): time-dependent AUC,
+# Brier score, IBS, calibration (ECE) -- planned for Week 4.

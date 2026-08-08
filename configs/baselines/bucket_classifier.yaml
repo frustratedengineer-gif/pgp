@@ -1,0 +1,11 @@
+# baselines/bucket_classifier.py
+day_max_days: 2.0
+week_max_days: 14.0
+bucket_ttl_days:
+  day: 1.0
+  week: 7.0
+  permanent: 365.0
+classifier: logistic_regression
+class_weight: balanced
+max_iter: 2000
+train_on: observed_events_only   # censored=False subset of train

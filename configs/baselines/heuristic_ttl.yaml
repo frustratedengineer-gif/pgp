@@ -1,0 +1,5 @@
+# baselines/heuristic_ttl.py
+base_ttl_days: 14.0
+ephemeral_ttl_days: 2.0
+permanent_ttl_days: 180.0
+length_boost_cap: 0.5   # score *= 1 + min(len(text)/200, length_boost_cap)

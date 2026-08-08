@@ -1,0 +1,7 @@
+# src/memorylife/encoders/bge.py
+name: bge_base
+model_name: BAAI/bge-base-en-v1.5
+dim: 768
+batch_size: 128
+normalize_embeddings: true
+device: cuda
