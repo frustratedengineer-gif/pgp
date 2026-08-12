@@ -1,0 +1,40 @@
+$ /storage/riya/pgp_memlifebench/.venv/bin/python scripts/train.py --data-dir data/processed --emb-dir artifacts/embeddings --out experiments/main/survival_seed7/survival_model_net.pt --seed 7 --device cuda
+0:	[1s / 1s],		train_loss: 4.1777,	val_loss: 4.3679
+1:	[0s / 1s],		train_loss: 4.0170,	val_loss: 4.1934
+2:	[0s / 2s],		train_loss: 3.9720,	val_loss: 4.1448
+3:	[0s / 2s],		train_loss: 3.9134,	val_loss: 4.1643
+4:	[0s / 2s],		train_loss: 3.8663,	val_loss: 4.1704
+5:	[0s / 3s],		train_loss: 3.8210,	val_loss: 4.2218
+6:	[0s / 3s],		train_loss: 3.7751,	val_loss: 4.2119
+7:	[0s / 3s],		train_loss: 3.7415,	val_loss: 4.2428
+8:	[0s / 3s],		train_loss: 3.7041,	val_loss: 4.2783
+9:	[0s / 4s],		train_loss: 3.6822,	val_loss: 4.3417
+10:	[0s / 4s],		train_loss: 3.6468,	val_loss: 4.3523
+11:	[0s / 4s],		train_loss: 3.6211,	val_loss: 4.3179
+12:	[0s / 5s],		train_loss: 3.5899,	val_loss: 4.3107
+13:	[0s / 5s],		train_loss: 3.5846,	val_loss: 4.5054
+14:	[0s / 5s],		train_loss: 3.5387,	val_loss: 4.4977
+15:	[0s / 5s],		train_loss: 3.4918,	val_loss: 4.4936
+16:	[0s / 6s],		train_loss: 3.4723,	val_loss: 4.6925
+17:	[0s / 6s],		train_loss: 3.4872,	val_loss: 4.5330
+Saved model to experiments/main/survival_seed7/survival_model_net.pt
+$ /storage/riya/pgp_memlifebench/.venv/bin/python scripts/run_baseline.py --method bucket_classifier --data-dir data/processed --emb-dir artifacts/embeddings --out-dir experiments/main/survival_seed7/scores --splits val test --seed 7 --device cuda
+val: wrote 939 scores -> bucket_classifier_val.json
+test: wrote 916 scores -> bucket_classifier_test.json
+$ /storage/riya/pgp_memlifebench/.venv/bin/python scripts/evaluate.py --data-dir data/processed --emb-dir artifacts/embeddings --model experiments/main/survival_seed7/survival_model_net.pt --scores-dir experiments/main/survival_seed7/scores --out-dir experiments/main/survival_seed7/results --splits val test --device cuda
+
+-- val --
+  0.7231  Our survival model (CoxPH on BGE embeddings)
+  0.6195  Day/week/permanent classifier
+  0.5713  LLM-prompted TTL (local Qwen2.5-7B)
+  0.5312  LLM-prompted TTL (ChatGPT / GPT-4o)
+  0.4849  Recency-frequency heuristic
+  0.4284  LLM-prompted TTL (Gemini)
+
+-- test --
+  0.7373  Our survival model (CoxPH on BGE embeddings)
+  0.6298  Day/week/permanent classifier
+  0.5411  LLM-prompted TTL (ChatGPT / GPT-4o)
+  0.5207  LLM-prompted TTL (local Qwen2.5-7B)
+  0.4806  LLM-prompted TTL (Gemini)
+  0.4753  Recency-frequency heuristic

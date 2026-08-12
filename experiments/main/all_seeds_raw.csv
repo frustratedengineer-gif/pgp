@@ -1,0 +1,61 @@
+split,method,c_index,n,seed
+test,Our survival model (CoxPH on BGE embeddings),0.7378,916,13
+test,Day/week/permanent classifier,0.6298,916,13
+test,LLM-prompted TTL (ChatGPT / GPT-4o),0.5411,916,13
+test,LLM-prompted TTL (local Qwen2.5-7B),0.5207,916,13
+test,LLM-prompted TTL (Gemini),0.4806,916,13
+test,Recency-frequency heuristic,0.4753,916,13
+val,Our survival model (CoxPH on BGE embeddings),0.7256,939,13
+val,Day/week/permanent classifier,0.6195,939,13
+val,LLM-prompted TTL (local Qwen2.5-7B),0.5713,939,13
+val,LLM-prompted TTL (ChatGPT / GPT-4o),0.5312,939,13
+val,Recency-frequency heuristic,0.4849,939,13
+val,LLM-prompted TTL (Gemini),0.4284,939,13
+test,Our survival model (CoxPH on BGE embeddings),0.7218,916,42
+test,Day/week/permanent classifier,0.6298,916,42
+test,LLM-prompted TTL (ChatGPT / GPT-4o),0.5411,916,42
+test,LLM-prompted TTL (local Qwen2.5-7B),0.5207,916,42
+test,LLM-prompted TTL (Gemini),0.4806,916,42
+test,Recency-frequency heuristic,0.4753,916,42
+val,Our survival model (CoxPH on BGE embeddings),0.7134,939,42
+val,Day/week/permanent classifier,0.6195,939,42
+val,LLM-prompted TTL (local Qwen2.5-7B),0.5713,939,42
+val,LLM-prompted TTL (ChatGPT / GPT-4o),0.5312,939,42
+val,Recency-frequency heuristic,0.4849,939,42
+val,LLM-prompted TTL (Gemini),0.4284,939,42
+test,Our survival model (CoxPH on BGE embeddings),0.7455,916,1337
+test,Day/week/permanent classifier,0.6298,916,1337
+test,LLM-prompted TTL (ChatGPT / GPT-4o),0.5411,916,1337
+test,LLM-prompted TTL (local Qwen2.5-7B),0.5207,916,1337
+test,LLM-prompted TTL (Gemini),0.4806,916,1337
+test,Recency-frequency heuristic,0.4753,916,1337
+val,Our survival model (CoxPH on BGE embeddings),0.7304,939,1337
+val,Day/week/permanent classifier,0.6195,939,1337
+val,LLM-prompted TTL (local Qwen2.5-7B),0.5713,939,1337
+val,LLM-prompted TTL (ChatGPT / GPT-4o),0.5312,939,1337
+val,Recency-frequency heuristic,0.4849,939,1337
+val,LLM-prompted TTL (Gemini),0.4284,939,1337
+test,Our survival model (CoxPH on BGE embeddings),0.7134,916,2024
+test,Day/week/permanent classifier,0.6298,916,2024
+test,LLM-prompted TTL (ChatGPT / GPT-4o),0.5411,916,2024
+test,LLM-prompted TTL (local Qwen2.5-7B),0.5207,916,2024
+test,LLM-prompted TTL (Gemini),0.4806,916,2024
+test,Recency-frequency heuristic,0.4753,916,2024
+val,Our survival model (CoxPH on BGE embeddings),0.7261,939,2024
+val,Day/week/permanent classifier,0.6195,939,2024
+val,LLM-prompted TTL (local Qwen2.5-7B),0.5713,939,2024
+val,LLM-prompted TTL (ChatGPT / GPT-4o),0.5312,939,2024
+val,Recency-frequency heuristic,0.4849,939,2024
+val,LLM-prompted TTL (Gemini),0.4284,939,2024
+test,Our survival model (CoxPH on BGE embeddings),0.7373,916,7
+test,Day/week/permanent classifier,0.6298,916,7
+test,LLM-prompted TTL (ChatGPT / GPT-4o),0.5411,916,7
+test,LLM-prompted TTL (local Qwen2.5-7B),0.5207,916,7
+test,LLM-prompted TTL (Gemini),0.4806,916,7
+test,Recency-frequency heuristic,0.4753,916,7
+val,Our survival model (CoxPH on BGE embeddings),0.7231,939,7
+val,Day/week/permanent classifier,0.6195,939,7
+val,LLM-prompted TTL (local Qwen2.5-7B),0.5713,939,7
+val,LLM-prompted TTL (ChatGPT / GPT-4o),0.5312,939,7
+val,Recency-frequency heuristic,0.4849,939,7
+val,LLM-prompted TTL (Gemini),0.4284,939,7

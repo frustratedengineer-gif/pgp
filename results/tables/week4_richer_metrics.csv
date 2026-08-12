@@ -1,0 +1,13 @@
+split,method,mean_auc,ibs,n
+test,Our survival model (CoxPH on BGE embeddings),0.7895,0.2463,916
+test,Day/week/permanent classifier,0.6776,0.3635,916
+test,LLM-prompted TTL (ChatGPT / GPT-4o),0.5339,0.4882,916
+test,LLM-prompted TTL (local Qwen2.5-7B),0.5091,0.522,916
+test,LLM-prompted TTL (Gemini),0.4602,0.6337,916
+test,Recency-frequency heuristic,0.4589,0.654,916
+val,Our survival model (CoxPH on BGE embeddings),0.7689,0.2081,939
+val,Day/week/permanent classifier,0.6418,0.3966,939
+val,LLM-prompted TTL (local Qwen2.5-7B),0.5786,0.4655,939
+val,LLM-prompted TTL (ChatGPT / GPT-4o),0.5241,0.4706,939
+val,LLM-prompted TTL (Gemini),0.4111,0.6288,939
+val,Recency-frequency heuristic,0.4941,0.6513,939

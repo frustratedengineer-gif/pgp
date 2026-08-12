@@ -1,0 +1,13 @@
+split,method,c_index_mean,c_index_std,n_seeds
+test,Our survival model (CoxPH on BGE embeddings),0.73116,0.013138226668770786,5
+test,Day/week/permanent classifier,0.6298,0.0,5
+test,LLM-prompted TTL (ChatGPT / GPT-4o),0.5411,0.0,5
+test,LLM-prompted TTL (local Qwen2.5-7B),0.5207,0.0,5
+test,LLM-prompted TTL (Gemini),0.4806,0.0,5
+test,Recency-frequency heuristic,0.4753,0.0,5
+val,Our survival model (CoxPH on BGE embeddings),0.7237199999999999,0.006338532953294465,5
+val,Day/week/permanent classifier,0.6195,0.0,5
+val,LLM-prompted TTL (local Qwen2.5-7B),0.5713,0.0,5
+val,LLM-prompted TTL (ChatGPT / GPT-4o),0.5312,0.0,5
+val,Recency-frequency heuristic,0.4849,0.0,5
+val,LLM-prompted TTL (Gemini),0.4284,0.0,5

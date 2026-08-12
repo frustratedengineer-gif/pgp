@@ -31,6 +31,12 @@ separately from accuracy).
 Results: `results/tables/week3_results_table.md`,
 `results/tables/llm_token_usage.md`.
 
+Responses are cached on disk under `artifacts/llm_cache/<method>/` (gitignored,
+regenerable), keyed by `sha256(model + prompt)`. Cache hits don't count
+against `llm_token_usage.md` -- Week-4 experiments (multi-seed reruns,
+paraphrase consistency checks) re-query the same records repeatedly, and
+re-billing OpenRouter for an identical prompt every time would be wasteful.
+
 ## Not yet implemented (Week 5 -- downstream memory-system comparison)
 
 `no_forget.py`, `fifo.py`, `lru.py`, `generative_agents_importance.py`,

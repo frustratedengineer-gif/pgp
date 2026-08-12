@@ -42,7 +42,8 @@ def run(args) -> None:
     x_sup = train["embeddings"][observed]
     y_sup = np.array([bucket_of(d) for d in train["durations"][observed]])
 
-    clf = LogisticRegression(max_iter=2000, class_weight="balanced")
+    clf = LogisticRegression(max_iter=2000, class_weight="balanced",
+                              random_state=getattr(args, "seed", 42))
     clf.fit(x_sup, y_sup)
 
     for split_name in args.splits:

@@ -1,0 +1,5 @@
+encoder,split,mean,std,count
+"bge-base-en-v1.5 (768d, Week-3 default)",test,0.73116,0.013138226668770786,5
+"bge-base-en-v1.5 (768d, Week-3 default)",val,0.7237199999999999,0.006338532953294465,5
+bge-large-en-v1.5 (1024d),test,0.7381800000000001,0.004805933832253572,5
+bge-large-en-v1.5 (1024d),val,0.73492,0.009066531861742954,5

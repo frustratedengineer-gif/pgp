@@ -32,7 +32,14 @@ lightning_logs/
 # JSONs are small and reviewer-useful, so those ARE committed.
 artifacts/embeddings/*.npy
 artifacts/embeddings/*.txt
+artifacts/embeddings_bge_large/
 
 # results: keep committed tables/figures, ignore scratch
 results/raw/*
 !results/raw/.gitkeep
+
+# artifacts/llm_cache: raw per-record LLM API responses, keyed by
+# sha256(model+prompt) -- regenerable (re-running just re-queries), and
+# there are thousands of tiny files (one per record per prompt variant).
+# The aggregated scores (artifacts/scores/*.json) ARE committed.
+artifacts/llm_cache/

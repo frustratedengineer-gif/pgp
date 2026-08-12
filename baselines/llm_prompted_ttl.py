@@ -35,8 +35,8 @@ Question: starting from when this was said, how many days from now is this fact 
 Answer with ONLY a single integer number of days. No words, no explanation."""
 
 
-def _query_one(url, model, memory_id, text):
-    prompt = PROMPT_TEMPLATE.format(text=text[:500])
+def _query_one(url, model, memory_id, text, prompt_template: str = PROMPT_TEMPLATE):
+    prompt = prompt_template.format(text=text[:500])
     payload = {
         "model": model,
         "prompt": prompt,

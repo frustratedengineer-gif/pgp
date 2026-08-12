@@ -39,6 +39,7 @@ def main():
     ap.add_argument("--llm-url", default="http://127.0.0.1:11434/api/generate")
     ap.add_argument("--llm-workers", type=int, default=6)
     ap.add_argument("--device", default="cuda", help="used by bucket_classifier's embedding step")
+    ap.add_argument("--seed", type=int, default=42, help="used by bucket_classifier's LogisticRegression")
     ap.add_argument("--chatgpt-model", default="openai/gpt-4o",
                      help="OpenRouter model slug, see https://openrouter.ai/models")
     ap.add_argument("--gemini-model", default="google/gemini-2.5-pro",

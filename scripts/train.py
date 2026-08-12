@@ -28,12 +28,19 @@ def main():
     ap.add_argument("--patience", type=int, default=15)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--weight-decay", type=float, default=1e-4)
+    ap.add_argument("--hidden1", type=int, default=256)
+    ap.add_argument("--hidden2", type=int, default=64)
+    ap.add_argument("--dropout1", type=float, default=0.2)
+    ap.add_argument("--dropout2", type=float, default=0.1)
+    ap.add_argument("--emb-model-name", default=None,
+                     help="override the sentence-transformers encoder, e.g. BAAI/bge-large-en-v1.5 (Week-4 encoder ablation)")
     ap.add_argument("--device", default="cuda")
     args = ap.parse_args()
 
     seed_everything(args.seed)
 
-    ensure_embeddings(args.data_dir, args.emb_dir, ["train", "val"], device=args.device)
+    ensure_embeddings(args.data_dir, args.emb_dir, ["train", "val"], device=args.device,
+                       model_name=args.emb_model_name)
 
     train = load_split(args.data_dir, args.emb_dir, "train")
     val = load_split(args.data_dir, args.emb_dir, "val")
@@ -43,7 +50,8 @@ def main():
     y_train = (train["durations"], train["events"])
     y_val = (val["durations"], val["events"])
 
-    net = build_survival_net(x_train.shape[1])
+    net = build_survival_net(x_train.shape[1], hidden1=args.hidden1, hidden2=args.hidden2,
+                              dropout1=args.dropout1, dropout2=args.dropout2)
     model = build_cox_model(net, lr=args.lr, weight_decay=args.weight_decay)
 
     callbacks = [tt.callbacks.EarlyStopping(patience=args.patience)]

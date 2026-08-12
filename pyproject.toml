@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memorylife"
-version = "0.3.0"
+version = "0.4.0"
 description = "MemoryLifeBench: memory lifetime prediction as a time-to-event problem"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,6 +17,7 @@ dependencies = [
     "sentence-transformers",
     "transformers",
     "lifelines",
+    "scikit-survival",
     "pycox",
     "torchtuples",
     "pyarrow",
