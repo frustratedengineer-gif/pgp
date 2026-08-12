@@ -15,16 +15,23 @@ from pathlib import Path
 
 from memorylife.data.datasets import load_split
 from memorylife.encoders.cache import ensure_embeddings
-from memorylife.evaluation.report import write_results_table
+from memorylife.evaluation.report import write_results_table, write_token_usage_table
 from memorylife.evaluation.survival_metrics import c_index_for_split
 from memorylife.models.checkpoint import load_survival_model
 
 METHOD_LABELS = {
     "our_model": "Our survival model (CoxPH on BGE embeddings)",
-    "llm_prompted_ttl": "LLM-prompted TTL",
+    "llm_prompted_ttl": "LLM-prompted TTL (local Qwen2.5-7B)",
+    "chatgpt_prompted_ttl": "LLM-prompted TTL (ChatGPT / GPT-4o)",
+    "gemini_prompted_ttl": "LLM-prompted TTL (Gemini)",
     "bucket_classifier": "Day/week/permanent classifier",
     "heuristic_ttl": "Recency-frequency heuristic",
 }
+# chatgpt/gemini need API keys and are opt-in: included automatically once
+# their score files exist (see baselines/{chatgpt,gemini}_prompted_ttl.py),
+# skipped with a note otherwise so this script keeps working without them.
+OPTIONAL_METHODS = ("chatgpt_prompted_ttl", "gemini_prompted_ttl")
+REQUIRED_METHODS = ("llm_prompted_ttl", "bucket_classifier", "heuristic_ttl")
 
 
 def our_model_scores(model_path: str, split: dict) -> dict[str, float]:
@@ -39,6 +46,33 @@ def baseline_scores(scores_dir: str, method: str, split_name: str) -> dict[str, 
     path = Path(scores_dir) / f"{method}_{split_name}.json"
     with open(path) as f:
         return json.load(f)
+
+
+def collect_token_usage(scores_dir: str) -> list[dict]:
+    """Token spend for the real-API baselines (see baselines/_openrouter_client.py),
+    reported as a cost/efficiency metric alongside C-index. Skips methods that
+    haven't been run yet or don't produce token accounting (e.g. the local
+    ollama baseline)."""
+    rows = []
+    for method in OPTIONAL_METHODS:
+        path = Path(scores_dir) / f"{method}_token_usage.json"
+        if not path.exists():
+            continue
+        with open(path) as f:
+            data = json.load(f)
+        for split_name, stats in data.get("by_split", {}).items():
+            rows.append({
+                "method": METHOD_LABELS[method],
+                "model": data.get("model", ""),
+                "split": split_name,
+                "calls": stats.get("calls", 0),
+                "prompt_tokens": stats.get("prompt_tokens", 0),
+                "completion_tokens": stats.get("completion_tokens", 0),
+                "total_tokens": stats.get("total_tokens", 0),
+                "avg_tokens_per_call": stats.get("avg_tokens_per_call", 0),
+                "elapsed_seconds": stats.get("elapsed_seconds", 0),
+            })
+    return rows
 
 
 def main():
@@ -59,8 +93,14 @@ def main():
         split = load_split(args.data_dir, args.emb_dir, split_name)
 
         methods = {"our_model": our_model_scores(args.model, split)}
-        for method in ("llm_prompted_ttl", "bucket_classifier", "heuristic_ttl"):
+        for method in REQUIRED_METHODS:
             methods[method] = baseline_scores(args.scores_dir, method, split_name)
+        for method in OPTIONAL_METHODS:
+            path = Path(args.scores_dir) / f"{method}_{split_name}.json"
+            if path.exists():
+                methods[method] = baseline_scores(args.scores_dir, method, split_name)
+            else:
+                print(f"  ({split_name}: skipping {method}, no {path.name} yet)")
 
         for method_key, scores in methods.items():
             c = c_index_for_split(scores, split)
@@ -78,6 +118,14 @@ def main():
         print(f"\n-- {split_name} --")
         for r in sorted([r for r in rows if r["split"] == split_name], key=lambda r: -r["c_index"]):
             print(f"  {r['c_index']:.4f}  {r['method']}")
+
+    token_rows = collect_token_usage(args.scores_dir)
+    if token_rows:
+        write_token_usage_table(token_rows, Path(args.out_dir) / "tables", name="llm_token_usage")
+        print("\n-- token usage (real-API baselines) --")
+        for r in token_rows:
+            print(f"  {r['method']} [{r['split']}]: {r['total_tokens']} tokens over {r['calls']} calls "
+                  f"(avg {r['avg_tokens_per_call']}/call, {r['elapsed_seconds']}s)")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,8 @@
+# baselines/chatgpt_prompted_ttl.py
+model: openai/gpt-4o   # OpenRouter slug, see https://openrouter.ai/models
+serving: openrouter
+api_key_env: OPENROUTER_API_KEY
+temperature: 0.0
+max_tokens: 16
+fallback_ttl_days: 7.0
+workers: 4   # lower than the local-model baseline: respect real rate limits

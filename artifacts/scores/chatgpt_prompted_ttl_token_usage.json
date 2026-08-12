@@ -1,0 +1,21 @@
+{
+  "model": "openai/gpt-4o",
+  "by_split": {
+    "val": {
+      "prompt_tokens": 129223,
+      "completion_tokens": 1615,
+      "total_tokens": 130838,
+      "calls": 939,
+      "avg_tokens_per_call": 139.3,
+      "elapsed_seconds": 319.5
+    },
+    "test": {
+      "prompt_tokens": 126394,
+      "completion_tokens": 1553,
+      "total_tokens": 127947,
+      "calls": 916,
+      "avg_tokens_per_call": 139.7,
+      "elapsed_seconds": 287.2
+    }
+  }
+}

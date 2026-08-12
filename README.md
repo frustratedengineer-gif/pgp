@@ -53,21 +53,36 @@ Expected runtime: ~15 minutes on a single modern GPU (dominated by the LLM
 baseline over the full train split). Full breakdown, hardware, and known
 non-determinism in `docs/reproducibility.md`.
 
-## Results (Week 3: our survival model vs. 3 baselines, by C-index)
+## Results (Week 3: our survival model vs. 5 baselines, by C-index)
 
 | Split | Method | C-index |
 |---|---|---|
 | test | **Our survival model (CoxPH on BGE embeddings)** | **0.7218** |
 | test | Day/week/permanent classifier | 0.6298 |
+| test | LLM-prompted TTL (ChatGPT / GPT-4o) | 0.5411 |
 | test | LLM-prompted TTL (Qwen2.5-7B, local) | 0.5207 |
+| test | LLM-prompted TTL (Gemini) | 0.4806 |
 | test | Recency-frequency heuristic | 0.4753 |
 | val | **Our survival model (CoxPH on BGE embeddings)** | **0.7134** |
 | val | Day/week/permanent classifier | 0.6195 |
 | val | LLM-prompted TTL (Qwen2.5-7B, local) | 0.5713 |
+| val | LLM-prompted TTL (ChatGPT / GPT-4o) | 0.5312 |
 | val | Recency-frequency heuristic | 0.4849 |
+| val | LLM-prompted TTL (Gemini) | 0.4284 |
 
 Full table: `results/tables/week3_results_table.md`. C-index = 0.5 is
-random; 1.0 is perfect ranking.
+random; 1.0 is perfect ranking. The core result: our trained survival model
+beats not just a local 7B model but real GPT-4o and Gemini prompted for the
+same task -- zero-shot lifetime prediction from an LLM, even a frontier
+one, is close to a coin flip on this benchmark; a model trained
+specifically on the survival objective is not.
+
+**Token spend for the GPT-4o/Gemini baselines** (cost/efficiency, tracked as
+a secondary metric alongside C-index): `results/tables/llm_token_usage.md`.
+GPT-4o used ~139 tokens/call and finished val+test (1,855 zero-shot calls)
+in ~10 minutes; Gemini 2.5 Pro used ~113 tokens/call but ~5x the wall time
+per call (reasoning overhead), and still landed a lower C-index than the
+free local model on both splits.
 
 ## Repo map
 
@@ -75,7 +90,8 @@ random; 1.0 is perfect ranking.
 data/            raw (gitignored) / processed (gitignored) / splits (committed) / samples (committed)
 src/memorylife/  the installable package -- data, encoders, heads, losses, evaluation, utils
                  (features/, fusion/, memory/, retrieval/, inference/ are Week 4-5 stubs)
-baselines/       llm_prompted_ttl.py, bucket_classifier.py, heuristic_ttl.py (implemented);
+baselines/       llm_prompted_ttl.py, chatgpt_prompted_ttl.py, gemini_prompted_ttl.py,
+                 bucket_classifier.py, heuristic_ttl.py (implemented);
                  fifo/lru/mem0/memgpt/... (Week-5 stubs)
 scripts/         thin CLIs: preprocess.py, train.py, run_baseline.py, evaluate.py, run_all.sh, run_smoke.sh
 configs/         documented run parameters (not yet Hydra-wired, see docs/reproducibility.md)
