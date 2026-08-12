@@ -11,11 +11,10 @@ correlate strongly with the Lifetime head and with the action head's
 the label used for training the action head (lifecycle_event) is derived
 from the SYNTHETIC GENERATION process, not from this NLI model's output.
 """
-from datetime import datetime
-
 import numpy as np
 
 from .base import FeatureExtractor
+from .causal import nearest_prior_in_conversation
 
 DEFAULT_MODEL_NAME = "typeform/distilbert-base-uncased-mnli"
 NLI_LABELS = ("contradiction", "neutral", "entailment")
@@ -43,26 +42,11 @@ class ContradictionFeatures(FeatureExtractor):
         if embeddings is None:
             raise ValueError("ContradictionFeatures requires embeddings (finds the nearest prior memory)")
 
-        by_conv: dict[str, list[int]] = {}
-        for idx, r in enumerate(records):
-            by_conv.setdefault(r["conversation_id"], []).append(idx)
-
         out = np.zeros((len(records), self.dim), dtype=np.float32)
         out[:, NLI_LABELS.index("neutral")] = 1.0  # default: nothing to compare against
 
-        pairs = []  # (record_idx, premise_text)
-        for conv_id, idxs in by_conv.items():
-            idxs_sorted = sorted(idxs, key=lambda i: datetime.fromisoformat(records[i]["injected_at"]))
-            seen_idx = []
-            seen_emb = []
-            for i in idxs_sorted:
-                if seen_emb:
-                    sims = embeddings[i] @ np.stack(seen_emb).T
-                    nearest = seen_idx[int(sims.argmax())]
-                    pairs.append((i, records[nearest]["text"][:500]))
-                seen_idx.append(i)
-                seen_emb.append(embeddings[i])
-
+        prior = nearest_prior_in_conversation(records, embeddings)
+        pairs = [(i, records[prior_i]["text"][:500]) for i, prior_i in prior.items() if prior_i is not None]
         if not pairs:
             return out
 

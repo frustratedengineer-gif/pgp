@@ -6,19 +6,20 @@ same conversation_id are considered "already known" -- comparing against
 later memories would leak future information a real deployed system
 wouldn't have at write time.
 """
-from datetime import datetime
-
 import numpy as np
 
 from .base import FeatureExtractor
+from .causal import nearest_prior_in_conversation
 
 
 class NoveltyFeatures(FeatureExtractor):
-    """1 feature: novelty = 1 - max_cosine_similarity to any earlier memory
-    in the same conversation (embeddings are already L2-normalized by the
-    BGE encoder, so cosine similarity == dot product). A record with no
-    earlier memories in its conversation gets novelty=1.0 (maximally
-    novel -- nothing to compare against)."""
+    """1 feature: novelty = 1 - cosine_similarity to the nearest earlier
+    memory in the same conversation (embeddings are already L2-normalized
+    by the BGE encoder, so cosine similarity == dot product). A record with
+    no earlier memories in its conversation gets novelty=1.0 (maximally
+    novel -- nothing to compare against). Causal ordering (never compares
+    against a later record) is implemented once, in causal.py, and proven
+    by tests/test_causal_features.py rather than re-implemented here."""
 
     @property
     def dim(self) -> int:
@@ -32,17 +33,10 @@ class NoveltyFeatures(FeatureExtractor):
         if embeddings is None:
             raise ValueError("NoveltyFeatures requires embeddings (compares against prior memories' embeddings)")
 
-        by_conv: dict[str, list[int]] = {}
-        for idx, r in enumerate(records):
-            by_conv.setdefault(r["conversation_id"], []).append(idx)
-
+        prior = nearest_prior_in_conversation(records, embeddings)
         out = np.ones((len(records), 1), dtype=np.float32)
-        for conv_id, idxs in by_conv.items():
-            idxs_sorted = sorted(idxs, key=lambda i: datetime.fromisoformat(records[i]["injected_at"]))
-            seen_embeddings = []
-            for i in idxs_sorted:
-                if seen_embeddings:
-                    sims = embeddings[i] @ np.stack(seen_embeddings).T
-                    out[i, 0] = 1.0 - float(sims.max())
-                seen_embeddings.append(embeddings[i])
+        for i, prior_i in prior.items():
+            if prior_i is not None:
+                sim = float(embeddings[i] @ embeddings[prior_i])
+                out[i, 0] = 1.0 - sim
         return out
