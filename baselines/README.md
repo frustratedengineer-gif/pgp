@@ -37,15 +37,20 @@ against `llm_token_usage.md` -- Week-4 experiments (multi-seed reruns,
 paraphrase consistency checks) re-query the same records repeatedly, and
 re-billing OpenRouter for an identical prompt every time would be wasteful.
 
-## Not yet implemented (Week 5 -- downstream memory-system comparison)
+## Not yet implemented (downstream memory-system comparison)
 
 `no_forget.py`, `fifo.py`, `lru.py`, `generative_agents_importance.py`,
 `mem0_wrapper.py`, `memgpt_wrapper.py`, `locomo.py`, `longmemeval.py` are
 placeholders for the end-to-end QA-accuracy-vs-memory-size comparison
 (architecture diagram's downstream retrieval/LLM box), not the Week-3
-survival-prediction comparison. They compare storage/forgetting *policies*,
-not lifetime *predictions*, and depend on the memory store
+survival-prediction comparison. They compare storage/forgetting *policies*
+against OUR forgetting policy (Week 5:
+`src/memorylife/memory/forgetting.py`, driven by the Lifetime + Action
+heads), not lifetime *predictions* against each other. The memory store
 (`src/memorylife/memory/`) and retriever (`src/memorylife/retrieval/`)
-which are also not built yet. Commit hashes / versions of any wrapped
+these depend on ARE now built (Week 5, see `docs/architecture.md`) -- what's
+missing is specifically the comparison baselines themselves (reimplementing
+FIFO/LRU/no-forget, or wrapping mem0/MemGPT) and the QA-accuracy-vs-size
+harness to run them through. Commit hashes / versions of any wrapped
 third-party systems (mem0, MemGPT) will be recorded here once those files
 have real content.

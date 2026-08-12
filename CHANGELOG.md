@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.5.0] - Week 5 - 2026-08-12
+
+### Added
+- 6 off-the-shelf feature extractors (`src/memorylife/features/`):
+  temporal (regex, deterministic), novelty (causal embedding-distance vs.
+  earlier memories in the same conversation), entities (NER), intent
+  (zero-shot classification), emotion, contradiction (NLI vs. the nearest
+  earlier memory) -- cached per split via `features/pipeline.py`.
+- Feature fusion (`src/memorylife/fusion/`): `concat` and `gated` variants;
+  `cross_attention` remains a stub.
+- Two new real, supervised heads: Action (store/update/merge/forget, labels
+  derived from `lifecycle_event`) and Future-utility (P(retrieved again),
+  labels from `observed_usage`/`no_usage_observed`) -- see
+  `src/memorylife/heads/`.
+- Importance "head" (`src/memorylife/heads/importance.py`): a documented
+  HEURISTIC, not learned -- no ground-truth importance label exists in the
+  dataset. Flagged explicitly so it's never mistaken for a trained head.
+- Joint multi-task model (`src/memorylife/models/joint_predictor.py`,
+  `multitask.py`, `scripts/train_joint.py`): Lifetime + Action +
+  Future-utility heads trained jointly via a custom loop (not pycox's
+  `CoxPH.fit()` wrapper, which can't share gradients across heads).
+  **Concat fusion reaches 0.7553 +/- 0.0045 test C-index** (3 seeds), beating
+  both gated fusion (0.7304 +/- 0.0082) and the Week-3/4 lone survival head
+  (0.7312 +/- 0.0131) -- see `results/tables/week5_joint_model_results.md`.
+- Full memory system (`src/memorylife/memory/`): `MemoryObject`, an
+  in-memory brute-force vector store, forgetting policy (TTL expiry +
+  Action-head "forget"), compaction (near-duplicate merging), reflection
+  (importance/utility decay past predicted TTL), append-only audit log.
+- Retriever (`src/memorylife/retrieval/`): similarity + importance +
+  utility reranking.
+- End-to-end grounded-QA inference pipeline
+  (`src/memorylife/inference/`, `scripts/run_inference_demo.py`): real LLM
+  call (GPT-4o via OpenRouter) over retrieved memories, demoed on a real
+  conversation with genuinely conflicting facts -- the demo output is
+  honest about where retrieval/prompting currently can't fully disambiguate
+  (see `docs/reproducibility.md`'s known-gaps section).
+
+### Known gaps (see `docs/reproducibility.md`)
+- Fusion cross-attention variant, FAISS/Chroma store backends, SQLite
+  metadata store: stubs.
+- No feature-ablation or retrieval-scoring-ablation configs run yet.
+- No timestamp-aware disambiguation for directly conflicting memories in
+  grounded QA.
+- Downstream memory-policy baselines (FIFO/LRU/mem0/MemGPT wrappers) and
+  the QA-accuracy-vs-memory-size harness: not started (separate from the
+  Week-5 joint model/memory system that IS built -- see `baselines/README.md`).
+
 ## [0.4.0] - Week 4 - 2026-08-12
 
 ### Added

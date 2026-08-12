@@ -1,0 +1,19 @@
+# Fusion ablation variant -- same as ours_joint_concat.yaml except fusion.
+# Despite "gated" being the architecture figure's more sophisticated /
+# "ours" mechanism, it underperformed plain concat on this dataset -- see
+# results/tables/week5_joint_model_results.md for the full comparison and
+# a discussion of why. Kept as a real, run config, not deleted just
+# because it lost the comparison.
+fusion: gated
+survival_hidden1: 256
+survival_hidden2: 64
+action_hidden: 128
+utility_hidden: 128
+lr: 0.001
+weight_decay: 0.0001
+survival_loss_weight: 1.0
+action_loss_weight: 0.5
+utility_loss_weight: 0.5
+epochs: 200
+patience: 20
+seed: 42

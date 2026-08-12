@@ -52,22 +52,23 @@ Known non-determinism not yet addressed:
   re-run of the same experiment doesn't re-query or re-bill -- this was the
   Week-3 gap flagged here, closed in Week 4.
 
+## Week-5 runtimes (single GPU)
+
+| Step | Time |
+|---|---|
+| Feature pipeline: 6 extractors over all ~10,152 records (`scripts/*` via `features/pipeline.ensure_features`) | ~163s (one-time, cached to `artifacts/features/`) |
+| Joint model training, one seed/fusion variant (`scripts/train_joint.py`) | ~1-3 min (early-stopped, 70-90 epochs) |
+| `scripts/run_inference_demo.py`, one 10-memory conversation, 4 grounded-QA queries | ~15-20s (dominated by 4 GPT-4o calls) |
+
 ## Known gaps / TODOs (so this doesn't read as more finished than it is)
 
-- **Hydra wiring**: `configs/*.yaml` document the exact values Week-3/4 ran
-  with, but `scripts/*.py` currently take them as argparse defaults, not
-  via live Hydra/OmegaConf composition. Low risk (values match), but the
-  configs aren't yet the actual source of truth at runtime.
+- **Hydra wiring**: `configs/*.yaml` document the exact values Week-3/4/5
+  ran with, but `scripts/*.py` currently take them as argparse defaults,
+  not via live Hydra/OmegaConf composition. Low risk (values match), but
+  the configs aren't yet the actual source of truth at runtime.
 - **`scripts/build_benchmark.py`**: empty stub. The LoCoMo/LongMemEval/
   synthetic dataset-generation pipeline is not in this repo (see
   `data/README.md`).
-- **Feature extractors, fusion, other 3 heads, memory store, retrieval,
-  inference** (`src/memorylife/{features,fusion,memory,retrieval,
-  inference}/`): not built. Week 4 ablated encoder choice and survival-head
-  hyperparameters on top of the Week-3 architecture; feature fusion and the
-  other 3 heads (importance/utility/action) are Week 5's "Full System"
-  scope, not built yet. Worth restating so the repo tree isn't mistaken for
-  a finished joint model.
 - **Brier score / IBS for non-`our_model` methods** (`results/tables/week4_richer_metrics.md`)
   use a degenerate step-function survival curve built from each baseline's
   scalar predicted-days output (see `src/memorylife/evaluation/richer_metrics.py`
@@ -76,3 +77,37 @@ Known non-determinism not yet addressed:
   calibrated probability curve the way `our_model`'s fitted Cox baseline
   hazards do. Don't quote their IBS as "model calibration" in the paper
   without this caveat.
+- **Importance head is a heuristic, not learned** (`src/memorylife/heads/importance.py`):
+  no ground-truth importance label exists anywhere in the dataset schema.
+  If a real signal becomes available (engagement logs, explicit ratings),
+  replace it with a trained head using the Action/Future-utility heads'
+  pattern -- don't cite the current heuristic as "the model learned what's
+  important."
+- **Fusion cross-attention variant** (`src/memorylife/fusion/cross_attention.py`):
+  stub. Only `concat`/`gated` were built and compared; concat won (see
+  `results/tables/week5_joint_model_results.md`) but cross-attention wasn't
+  tried, so "concat is best" is only established against the two fusion
+  mechanisms actually implemented.
+- **Retrieval-scoring ablation not run**: `configs/retrieval/sim_only.yaml`
+  (alpha=beta=0) is documented but `scripts/run_inference_demo.py` only
+  ever exercises `sim_importance_utility.yaml`'s weights -- "does
+  importance/utility reranking actually improve retrieval" is not yet
+  measured, only assumed.
+- **No timestamp-aware disambiguation in grounded QA**: when the retriever
+  surfaces two directly conflicting memories with near-identical scores
+  (e.g. two different phone numbers), the LLM prompt doesn't include
+  timestamps or explicit recency signal, so it can't reliably resolve which
+  is current -- observed directly in `scripts/run_inference_demo.py`'s
+  default demo (see `docs/architecture.md`'s Week-5 section). The Action
+  head's `update`/`merge` predictions are meant to prevent stale
+  duplicates from coexisting in the first place, but this specific demo
+  conversation has genuine cases the current heuristics don't fully
+  resolve -- a known, undisguised limitation, not a bug being hidden.
+- **`faiss_store.py`/`chroma_store.py`/`sqlite_metadata.py`**: stubs. The
+  working default (`memory/store/numpy_store.py`) is brute-force cosine
+  search, which is fine at MemoryLifeBench's scale (~10K memories) but
+  won't scale past that without a real ANN index.
+- **Feature-extractor ablation configs** (`configs/features/no_*.yaml` per
+  `docs/repo_structure_reference.md`'s template): not created. Which of the
+  6 extractors actually drive the joint model's C-index/action-acc gains
+  vs. which are dead weight is not yet measured.

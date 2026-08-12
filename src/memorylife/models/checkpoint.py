@@ -1,4 +1,6 @@
-"""Save/load for the Week-3 survival model (pycox CoxPH net)."""
+"""Save/load for the Week-3 survival model (pycox CoxPH net) and the
+Week-5 joint multi-task model."""
+import json
 from pathlib import Path
 import torch
 import torchtuples as tt
@@ -6,6 +8,7 @@ from pycox.models import CoxPH
 
 from ..heads.survival import build_survival_net
 from ..losses.cox_partial import build_cox_model
+from .joint_predictor import JointLifecyclePredictor
 
 
 def save_survival_model(model: CoxPH, path: str | Path) -> None:
@@ -25,4 +28,24 @@ def load_survival_model(path: str | Path, in_features: int, hidden1: int = 256, 
     # PyTorch >=2.6 defaults torch.load to weights_only=True, which rejects
     # pycox's plain nn.Module pickle.
     model.load_net(str(path), weights_only=False)
+    return model
+
+
+def save_joint_model(model: JointLifecyclePredictor, path: str | Path, config: dict) -> None:
+    """Saves weights (.pt) + the architecture config needed to reconstruct
+    the module before loading state_dict (embedding_dim/feature_dim/
+    fusion_name/hidden sizes aren't recoverable from the state_dict alone)."""
+    path = Path(path)
+    torch.save(model.state_dict(), path)
+    path.with_suffix(".config.json").write_text(json.dumps(config, indent=2))
+
+
+def load_joint_model(path: str | Path) -> JointLifecyclePredictor:
+    path = Path(path)
+    config = json.loads(path.with_suffix(".config.json").read_text())
+    model = JointLifecyclePredictor(**config)
+    # weights_only=True (the default) is fine here: a plain state_dict of
+    # tensors, not pycox's nn.Module pickle (contrast load_survival_model above).
+    model.load_state_dict(torch.load(path, weights_only=True))
+    model.eval()
     return model

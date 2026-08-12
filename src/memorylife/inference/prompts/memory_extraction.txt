@@ -1,0 +1,7 @@
+You extract durable, memory-worthy statements from a single conversational turn, for a personal AI assistant's long-term memory store.
+
+Conversation turn (speaker: {speaker}): "{turn_text}"
+
+If this turn states a fact, preference, plan, or event worth remembering for future conversations, output it as a short, self-contained third-person statement (e.g. "User lives in Denver.", "User has a flight on March 3rd."). If it's small talk, a question with no lasting content, or nothing worth remembering, output exactly: NONE
+
+Output ONLY the extracted statement (or NONE). No explanation.

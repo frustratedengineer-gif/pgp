@@ -9,12 +9,13 @@ Architecture figure: [`docs/figures/architecture.pdf`](docs/figures/architecture
 `docs/architecture.md` for a box-by-box walkthrough of what's built vs.
 still a stub).
 
-**Status: Week 4 of 6.** Dataset (W1), benchmark (W2), the first trained
-survival model + baseline comparison (W3), and multi-seed/significance/
-ablation/consistency experiments (W4) are done. Weeks 5-6 (the end-to-end
-memory system, the paper) are not started -- see `docs/reproducibility.md`
-"Known gaps" for the full honest list before assuming more of this repo
-works than actually does.
+**Status: Week 5 of 6.** Dataset (W1), benchmark (W2), the first trained
+survival model + baseline comparison (W3), multi-seed/significance/
+ablation/consistency experiments (W4), and the full joint multi-task model
++ memory system + retrieval + grounded-QA pipeline (W5) are done. Week 6
+(the paper) is not started -- see `docs/reproducibility.md` "Known gaps"
+for the full honest list before assuming more of this repo works than
+actually does.
 
 ## Install
 
@@ -60,6 +61,17 @@ LLM calls): `scripts/run_seed_sweep.py`, `scripts/compute_significance.py`,
 `OPENROUTER_API_KEY=... scripts/consistency_check.py`. Runtimes for each in
 `docs/reproducibility.md`.
 
+Week-5 joint model + full pipeline demo, also separate from `run_all.sh`:
+
+```bash
+python scripts/train_joint.py --fusion concat --seed 42   # ~1-3 min, produces artifacts/joint_model.pt
+OPENROUTER_API_KEY=... python scripts/run_inference_demo.py --device cuda
+```
+
+The demo ingests a real 10-memory conversation (containing genuinely
+conflicting facts on purpose), runs compaction/forgetting/reflection, then
+answers 4 questions grounded in whatever survives, via a real GPT-4o call.
+
 ## Results (Week 3: our survival model vs. 5 baselines, by C-index)
 
 | Split | Method | C-index |
@@ -104,21 +116,56 @@ draw. Week 4 checks that, and looks for cracks beyond raw C-index:
 | Is a bigger/different encoder or head size the real driver? | Marginal: BGE-large edges out BGE-base slightly (0.738 vs 0.731 test), hyperparameter variants stay within ~0.72-0.75 -- the Week-3 defaults weren't a lucky pick | `week4_ablation_encoder.md`, `week4_ablation_hparams.md` |
 | Are the LLM baselines at least *consistent*, even if less accurate? | Mixed: GPT-4o/Gemini are fairly stable under prompt rewording (CV ~0.38), but the local Qwen2.5-7B is not (CV ~0.75, 85% of records unstable) -- worth knowing before picking a fallback LLM baseline | `week4_consistency.md` |
 
+## Week-5: the full joint model + memory system
+
+Adds auxiliary features (6 off-the-shelf pretrained extractors: temporal,
+novelty, entities, intent, emotion, contradiction) fused with the embedding,
+feeding THREE jointly trained heads (Lifetime, Action, Future-utility)
+sharing one representation -- plus a 4th, heuristic-only Importance "head"
+(no ground-truth label exists for it, see `src/memorylife/heads/importance.py`).
+
+| Fusion | Test C-index | Test action accuracy | Test utility accuracy |
+|---|---|---|---|
+| **concat** | **0.7553 +/- 0.0045** | **0.8642 +/- 0.0005** | 0.6170 +/- 0.0072 |
+| gated | 0.7304 +/- 0.0082 | 0.8384 +/- 0.0070 | 0.6165 +/- 0.0044 |
+
+(3 seeds each.) Concat fusion beats the Week-3/4 lone survival head
+(0.7312 +/- 0.0131 test) by a real, consistent margin -- and beats gated
+fusion despite gated being the more sophisticated "ours" mechanism per the
+architecture figure. Full table: `results/tables/week5_joint_model_results.md`.
+
+On top of the joint model: a real memory store (in-memory, brute-force
+cosine search -- sufficient at ~10K memories), a forgetting policy (TTL
+expiry + Action-head "forget"), compaction (merges near-duplicates),
+reflection (importance/utility decay past predicted TTL), an append-only
+audit log, a retriever (similarity + importance + utility reranking), and
+grounded QA via a real LLM call. `scripts/run_inference_demo.py` runs all
+of this end-to-end and is honest about where it currently breaks: with two
+conflicting memories at near-identical retrieval scores and no timestamp
+reasoning in the prompt, the LLM flags the ambiguity rather than guessing
+wrong -- a real limitation, documented in `docs/reproducibility.md`, not
+hidden.
+
 ## Repo map
 
 ```
 data/            raw (gitignored) / processed (gitignored) / splits (committed) / samples (committed)
-src/memorylife/  the installable package -- data, encoders, heads, losses, evaluation, utils
-                 (features/, fusion/, memory/, retrieval/, inference/ are Week 5 stubs)
+src/memorylife/  the installable package -- data, encoders, features, fusion, heads,
+                 losses, models, memory, retrieval, inference, evaluation, utils
+                 (fusion/cross_attention.py, memory/store/{faiss,chroma}_store.py,
+                 memory/store/sqlite_metadata.py are still stubs)
 baselines/       llm_prompted_ttl.py, chatgpt_prompted_ttl.py, gemini_prompted_ttl.py,
                  bucket_classifier.py, heuristic_ttl.py (implemented);
-                 fifo/lru/mem0/memgpt/... (Week-5 stubs)
+                 fifo/lru/mem0/memgpt/... (Week-5 downstream-comparison stubs --
+                 different from the Week-5 joint model, see baselines/README.md)
 scripts/         thin CLIs: preprocess.py, train.py, run_baseline.py, evaluate.py,
                  run_seed_sweep.py, compute_significance.py, compute_richer_metrics.py,
-                 consistency_check.py, run_ablations.py, run_all.sh, run_smoke.sh
+                 consistency_check.py, run_ablations.py, train_joint.py,
+                 run_inference_demo.py, run_all.sh, run_smoke.sh
 configs/         documented run parameters (not yet Hydra-wired, see docs/reproducibility.md)
-experiments/     main/ (5-seed sweep), ablation/ (encoder + hyperparameter) -- resolved
-                 config + checkpoint + metrics.json + log per run
+experiments/     main/ (5-seed sweep), ablation/ (encoder + hyperparameter),
+                 joint/ (Week-5 fusion x seed sweep) -- resolved config +
+                 checkpoint + metrics.json + log per run
 results/         tables/ (committed), raw/ (gitignored)
 docs/            architecture.md, benchmark_card.md, reproducibility.md, figures/
 tests/           test_censoring.py, test_survival_loss.py (real coverage);

@@ -1,0 +1,9 @@
+# Baseline: pure semantic similarity, no importance/utility reranking.
+# Documented for the ablation this config implies (does importance/utility
+# reranking actually help retrieval quality?) -- not yet run this session;
+# scripts/run_inference_demo.py currently only exercises
+# sim_importance_utility.yaml's weights. Running this variant and comparing
+# is a natural Week-6 follow-up, not done here.
+alpha: 0.0
+beta: 0.0
+candidate_pool_multiplier: 5

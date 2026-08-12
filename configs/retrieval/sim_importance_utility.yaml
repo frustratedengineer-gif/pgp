@@ -1,0 +1,6 @@
+# Ours: similarity + heuristic importance + learned future-utility.
+# Matches src/memorylife/retrieval/scoring.py's ScoringWeights defaults,
+# actually used by scripts/run_inference_demo.py's Retriever.
+alpha: 0.3  # importance weight
+beta: 0.3   # utility weight
+candidate_pool_multiplier: 5  # retrieval/retriever.py: pull this many x k before reranking

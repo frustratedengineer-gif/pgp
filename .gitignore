@@ -23,16 +23,28 @@ data/processed/*
 wandb/
 outputs/
 lightning_logs/
-# ...except: this checkpoint is a small MLP head (<1MB), not a foundation
-# model -- cheap enough to commit directly instead of pushing to a model hub.
+# ...except: these are small MLP heads (<2MB), not foundation models --
+# cheap enough to commit directly instead of pushing to a model hub. Only
+# the ONE primary/reference checkpoint per model is committed this way;
+# the per-seed sweep checkpoints under experiments/{main,joint}/*/ stay
+# gitignored and regenerable (configs/logs/scores ARE committed there, so
+# the exact run is still fully reproducible without the weights).
 !artifacts/survival_model_net.pt
+!artifacts/joint_model.pt
 
-# artifacts/embeddings: regenerable from data/processed + scripts/train.py
-# (~31MB for the full train split) -- not worth committing. Baseline score
-# JSONs are small and reviewer-useful, so those ARE committed.
+# artifacts/embeddings, artifacts/features: regenerable from data/processed
+# + scripts/train.py / features/pipeline.py (tens of MB) -- not worth
+# committing. Baseline score JSONs are small and reviewer-useful, so those
+# ARE committed.
 artifacts/embeddings/*.npy
 artifacts/embeddings/*.txt
 artifacts/embeddings_bge_large/
+artifacts/features/*.npy
+
+# artifacts/demo_audit_log.jsonl: runtime output of
+# scripts/run_inference_demo.py, regenerated fresh on every demo run --
+# not a benchmark result, nothing to commit.
+artifacts/demo_audit_log.jsonl
 
 # results: keep committed tables/figures, ignore scratch
 results/raw/*

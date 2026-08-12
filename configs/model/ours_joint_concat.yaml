@@ -1,0 +1,15 @@
+# Week-5 joint model, actually used for the committed artifacts/joint_model.pt
+# checkpoint. See scripts/train_joint.py / results/tables/week5_joint_model_results.md.
+fusion: concat
+survival_hidden1: 256
+survival_hidden2: 64
+action_hidden: 128
+utility_hidden: 128
+lr: 0.001
+weight_decay: 0.0001
+survival_loss_weight: 1.0
+action_loss_weight: 0.5
+utility_loss_weight: 0.5
+epochs: 200
+patience: 20
+seed: 42
