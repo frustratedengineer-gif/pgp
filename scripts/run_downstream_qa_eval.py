@@ -92,6 +92,16 @@ def compute_lru_last_referenced(records, embeddings) -> dict[str, float]:
     return last_referenced
 
 
+def remaining_life_fraction(obj: MemoryObject, as_of: datetime) -> float:
+    """0 once past predicted_ttl_days, ->1 the fresher a memory is relative
+    to its OWN predicted TTL -- a continuous version of `is_expired`'s
+    binary check, so it can be combined into a ranking score instead of a
+    hard yes/no cutoff."""
+    if obj.predicted_ttl_days <= 0:
+        return 0.0
+    return max(0.0, min(1.0, 1.0 - obj.age_days(as_of) / obj.predicted_ttl_days))
+
+
 def final_active_ids(objects: list[MemoryObject], policy: str, capacity: int | None,
                       last_referenced: dict[str, float], as_of: datetime) -> set[str]:
     if policy == "no_forget":
@@ -103,6 +113,20 @@ def final_active_ids(objects: list[MemoryObject], policy: str, capacity: int | N
         return {o.memory_id for o in ranked[:capacity]}
     if policy == "lru":
         ranked = sorted(objects, key=lambda o: last_referenced.get(o.memory_id, float("-inf")), reverse=True)
+        return {o.memory_id for o in ranked[:capacity]}
+    if policy == "ours_utility":
+        # `ours` makes an independent per-memory threshold decision; fifo/lru
+        # always keep their best-N by a RANKED score. Tests whether ranking by
+        # the already-trained (but eviction-unused) Future-Utility head's
+        # P(referenced again) -- conceptually the same thing lru approximates
+        # heuristically via nearest_prior_in_conversation -- closes the gap.
+        ranked = sorted(objects, key=lambda o: o.utility_prob, reverse=True)
+        return {o.memory_id for o in ranked[:capacity]}
+    if policy == "ours_combo":
+        # Blends the trained utility signal with a continuous (not hard-cutoff)
+        # version of the lifetime signal, still ranked top-N like fifo/lru.
+        ranked = sorted(objects, key=lambda o: 0.5 * o.utility_prob + 0.5 * remaining_life_fraction(o, as_of),
+                         reverse=True)
         return {o.memory_id for o in ranked[:capacity]}
     raise ValueError(f"unknown policy: {policy}")
 

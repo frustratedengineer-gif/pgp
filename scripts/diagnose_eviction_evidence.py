@@ -49,7 +49,7 @@ from memorylife.data.build_benchmark import _dia_ids_of, load_all_processed, loa
 from memorylife.inference.pipeline import build_memory_objects  # noqa: E402
 from memorylife.models.checkpoint import load_joint_model, load_survival_model  # noqa: E402
 
-POLICIES = ("no_forget", "fifo", "lru", "ours")
+POLICIES = ("no_forget", "fifo", "lru", "ours", "ours_utility", "ours_combo")
 
 
 def main():
@@ -110,7 +110,7 @@ def main():
         capacities.append(capacity)
         total_objects.append(len(objects))
         active_by_policy = {"ours": ours_ids}
-        for policy in ("no_forget", "fifo", "lru"):
+        for policy in ("no_forget", "fifo", "lru", "ours_utility", "ours_combo"):
             active_by_policy[policy] = final_active_ids(objects, policy, capacity, last_referenced, as_of)
 
         dia_to_mids: dict[str, list[str]] = {}
