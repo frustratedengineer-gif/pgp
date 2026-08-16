@@ -272,6 +272,23 @@ stronger result than EM showed, though (like the EM/F1 numbers) this is
 a raw mean on n=120/25 and would need the same bootstrap treatment as
 `week6_downstream_significance.md` before calling it a confirmed win.
 
+**What does this actually look like on a real question?** (`scripts/qualitative_examples.py`,
+`results/tables/week6_qualitative_examples.md`, free, no LLM calls -- reuses
+already-collected predictions plus one local inference pass to recover
+which evidence memory was evicted under which policy): traced 8 "smoking
+gun" cases where the SAME gold-evidence memory was evicted under `ours`
+but survived under `ours_utility`, AND that specific change flipped the
+answer from wrong to right. Several are stark -- `ours` answers "I don't
+have that information yet" (proving the memory was genuinely gone, not
+just a bad guess), while `ours_utility`, given the same memory back,
+answers correctly (e.g. "Jon lost his job as a banker the day before the
+conversation" evicted -> `ours` can't answer when; kept -> `ours_utility`
+answers "2023-01-19" correctly). Also includes concrete EM-vs-judge
+disagreement examples, with an explicit caveat that not every such
+disagreement is EM being too harsh -- one entry ("three years" judged
+equivalent to "2019") looks like a plausible judge error, not an EM
+failure, and is flagged as such rather than presented uncritically.
+
 ## Repo map
 
 ```
