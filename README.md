@@ -233,6 +233,27 @@ TTL-quantile fix (Fix #1) is independently confirmed significant on F1
 (Q0.2 vs Q0.5: p=0.010; Q0.1 vs Q0.5: p=0.005) though not yet on EM at
 this sample size (p=0.137 / p=0.048).
 
+**Why does this actually work?** (`scripts/analyze_utility_signal.py`,
+`results/tables/week6_utility_signal_auc.md`, free, no LLM calls): pooled
+AUC of each signal directly predicting "is this memory ever cited as QA
+evidence" across all 2,536 LoCoMo memories. `utility_prob` scores 0.6709
+-- genuinely predictive, and positive in every one of the 10
+conversations individually (range 0.61-0.76), matching the Future-Utility
+head's own Week-5 validation AUC. `predicted_ttl_days` scores **0.2852 --
+below 0.5, i.e. INVERSELY correlated** with being QA evidence, not just
+weak. A memory predicted to survive longer is actually LESS likely to be
+what a question needs -- "how long until this fact goes stale" (the
+survival objective) and "will this be the evidence for a specific
+question" (what downstream QA needs) are different, sometimes inversely
+related constructs; LoCoMo often asks about specific one-off events
+(naturally short predicted lifetime) rather than durable facts. This
+composes with the Fix #1 finding into one coherent causal story: the
+original policy's median cutoff was a coin-flip AND, independent of any
+cutoff choice, the underlying ranking signal points backwards relative to
+what downstream QA needs -- which is why moving the cutoff (Fix #1) only
+partly helped, and switching the ranking signal entirely (Fix #2) was
+what actually closed the gap.
+
 ## Repo map
 
 ```
