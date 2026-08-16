@@ -254,6 +254,24 @@ what downstream QA needs -- which is why moving the cutoff (Fix #1) only
 partly helped, and switching the ranking signal entirely (Fix #2) was
 what actually closed the gap.
 
+**Is EM/F1 even measuring quality fairly?** (`scripts/judge_downstream_qa.py`,
+`results/tables/week6_judge_scores_week6_downstream_qa_raw_q0.2_ranked_pilot.md`):
+`llm_judge_score` (built to catch correct-but-differently-worded answers
+EM penalizes, e.g. "2023-05-07" vs reference "7 May 2023") was applied to
+all 725 already-collected predictions from the ranked-eviction
+confirmation run -- no new retrieval/answering, ~145k tokens estimated
+(not separately measured this run; usage tracking was missing and has
+since been added to the script and `qa_metrics.llm_judge_score` for any
+future run). Result: **22.1% of all predictions (160/725) were marked
+wrong by EM but judged substantively correct** -- EM was drastically
+undercounting real quality across every policy. Under the judge metric,
+LoCoMo scores jump 2-4x (e.g. `ours_utility`: EM 0.092 -> judge 0.350),
+and the *relative ranking* shifts in `ours_utility`'s favor: it edges out
+both `lru` (0.342) and the `no_forget` ceiling itself (0.333) -- a
+stronger result than EM showed, though (like the EM/F1 numbers) this is
+a raw mean on n=120/25 and would need the same bootstrap treatment as
+`week6_downstream_significance.md` before calling it a confirmed win.
+
 ## Repo map
 
 ```

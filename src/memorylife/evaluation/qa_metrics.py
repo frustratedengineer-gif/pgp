@@ -49,19 +49,23 @@ def score_qa(prediction: str, reference: str) -> dict:
 JUDGE_VERDICT_RE = re.compile(r"\b(correct|incorrect)\b", re.IGNORECASE)
 
 
-def llm_judge_score(question: str, prediction: str, reference: str, model: str = "openai/gpt-4o") -> float:
-    """1.0 if the judge says the prediction is substantively correct given
-    the reference answer, 0.0 otherwise. Needed because EM/F1 penalize
-    correct-but-differently-worded answers (e.g. "Business Administration"
-    vs "a degree in Business Administration") -- a real limitation of the
-    cheap metrics above, not a flaw specific to our system, but one that
-    matters for a fair downstream comparison. See prompts/judge.txt."""
+def llm_judge_score(question: str, prediction: str, reference: str, model: str = "openai/gpt-4o") -> tuple[float, dict]:
+    """(score, usage): score is 1.0 if the judge says the prediction is
+    substantively correct given the reference answer, 0.0 otherwise; usage
+    is the API call's token-usage dict, so callers scoring many predictions
+    can track real spend (see scripts/judge_downstream_qa.py) rather than
+    just estimating it. Needed because EM/F1 penalize correct-but-
+    differently-worded answers (e.g. "Business Administration" vs "a
+    degree in Business Administration") -- a real limitation of the cheap
+    metrics above, not a flaw specific to our system, but one that matters
+    for a fair downstream comparison. See prompts/judge.txt."""
     from pathlib import Path
 
     from ..inference.llm_client import chat_completion
 
     template = (Path(__file__).parent.parent / "inference" / "prompts" / "judge.txt").read_text()
     prompt = template.format(question=question, prediction=prediction, reference=reference)
-    text, _usage = chat_completion([{"role": "user", "content": prompt}], model=model, max_tokens=10)
+    text, usage = chat_completion([{"role": "user", "content": prompt}], model=model, max_tokens=10)
     match = JUDGE_VERDICT_RE.search(text)
-    return 1.0 if match and match.group(1).lower() == "correct" else 0.0
+    score = 1.0 if match and match.group(1).lower() == "correct" else 0.0
+    return score, usage
