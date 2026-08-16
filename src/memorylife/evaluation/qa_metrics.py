@@ -1,0 +1,67 @@
+"""
+Downstream QA metrics: EM (exact match) and token-F1, the standard SQuAD-
+style scoring for free-form QA against a reference answer. Cheap and
+deterministic -- used for the bulk of `scripts/run_downstream_qa_eval.py`'s
+scoring, since LLM-judge scoring (`llm_judge_score` below, using
+`inference/prompts/judge.txt`) costs a second LLM call per QA pair and is
+reserved for a smaller subsample by default (see that script's
+`--judge-sample-frac`).
+
+Normalization matches the original SQuAD eval script's convention (lower,
+strip punctuation/articles, collapse whitespace) so scores are comparable
+to how LoCoMo/LongMemEval's own papers report EM/F1, not a bespoke metric.
+"""
+import re
+import string
+from collections import Counter
+
+
+def normalize_answer(s: str) -> str:
+    s = s.lower()
+    s = "".join(ch for ch in s if ch not in string.punctuation)
+    s = re.sub(r"\b(a|an|the)\b", " ", s)
+    return " ".join(s.split())
+
+
+def exact_match(prediction: str, reference: str) -> float:
+    return float(normalize_answer(prediction) == normalize_answer(reference))
+
+
+def token_f1(prediction: str, reference: str) -> float:
+    pred_tokens = normalize_answer(prediction).split()
+    ref_tokens = normalize_answer(reference).split()
+    if not pred_tokens or not ref_tokens:
+        return float(pred_tokens == ref_tokens)
+
+    common = Counter(pred_tokens) & Counter(ref_tokens)
+    n_common = sum(common.values())
+    if n_common == 0:
+        return 0.0
+    precision = n_common / len(pred_tokens)
+    recall = n_common / len(ref_tokens)
+    return 2 * precision * recall / (precision + recall)
+
+
+def score_qa(prediction: str, reference: str) -> dict:
+    return {"em": exact_match(prediction, reference), "f1": token_f1(prediction, reference)}
+
+
+JUDGE_VERDICT_RE = re.compile(r"\b(correct|incorrect)\b", re.IGNORECASE)
+
+
+def llm_judge_score(question: str, prediction: str, reference: str, model: str = "openai/gpt-4o") -> float:
+    """1.0 if the judge says the prediction is substantively correct given
+    the reference answer, 0.0 otherwise. Needed because EM/F1 penalize
+    correct-but-differently-worded answers (e.g. "Business Administration"
+    vs "a degree in Business Administration") -- a real limitation of the
+    cheap metrics above, not a flaw specific to our system, but one that
+    matters for a fair downstream comparison. See prompts/judge.txt."""
+    from pathlib import Path
+
+    from ..inference.llm_client import chat_completion
+
+    template = (Path(__file__).parent.parent / "inference" / "prompts" / "judge.txt").read_text()
+    prompt = template.format(question=question, prediction=prediction, reference=reference)
+    text, _usage = chat_completion([{"role": "user", "content": prompt}], model=model, max_tokens=10)
+    match = JUDGE_VERDICT_RE.search(text)
+    return 1.0 if match and match.group(1).lower() == "correct" else 0.0

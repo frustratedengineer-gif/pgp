@@ -1,0 +1,7 @@
+You are grading whether a candidate answer to a question is substantively correct, given a known reference answer. Judge by MEANING, not exact wording -- paraphrases, different units/formats for the same fact, and answers that include the correct fact plus extra correct context all count as correct. A vague, wrong, contradictory, or "I don't know" answer when the reference has a real answer counts as incorrect.
+
+Question: "{question}"
+Reference answer: "{reference}"
+Candidate answer: "{prediction}"
+
+Respond with exactly one word: CORRECT or INCORRECT. No explanation.

@@ -42,16 +42,27 @@ PROMPTS_DIR = Path(__file__).parent / "prompts"
 MAX_SURVIVAL_TTL_DAYS = 3650.0  # cap for records whose survival curve never crosses 0.5 (predicted near-permanent)
 
 
-def _median_ttl_days(surv_df) -> np.ndarray:
+def quantile_ttl_days(surv_df, quantile: float = 0.5) -> np.ndarray:
     """surv_df: pycox's predict_surv_df output (index=time, columns=records).
-    Median survival time per column: the last time point where S(t) >= 0.5.
-    Records whose curve never drops below 0.5 (predicted durable) get
-    MAX_SURVIVAL_TTL_DAYS rather than an unbounded/undefined value."""
+    TTL per column: the last time point where S(t) >= quantile. quantile=0.5
+    (the default, and the only value used through Week 6's headline runs)
+    is the MEDIAN survival time -- and, used as a hard deterministic
+    eviction cutoff, is inherently a coin-flip threshold: by definition of
+    "median," roughly half of records whose curve is correctly calibrated
+    are still "alive" past it. C-index (this model's validated metric,
+    Weeks 3-5) is rank-only and invariant to monotonic rescaling of the
+    risk score -- it never validates that any one quantile is a safe
+    absolute cutoff. Passing a lower quantile (e.g. 0.2 or 0.1, i.e. the
+    80th/90th percentile survival time) shifts the cutoff later, trading
+    storage for retention; see scripts/diagnose_eviction_evidence.py and
+    results/tables/week6_ttl_quantile_sweep.md for the measured effect.
+    Records whose curve never drops below `quantile` (predicted durable)
+    get MAX_SURVIVAL_TTL_DAYS rather than an unbounded/undefined value."""
     times = surv_df.index.to_numpy()
     values = surv_df.to_numpy()  # (n_times, n_records)
     out = np.full(values.shape[1], MAX_SURVIVAL_TTL_DAYS, dtype=np.float32)
     for col in range(values.shape[1]):
-        below = np.where(values[:, col] < 0.5)[0]
+        below = np.where(values[:, col] < quantile)[0]
         if len(below) > 0:
             idx = max(below[0] - 1, 0)
             out[col] = float(times[idx])
@@ -59,11 +70,12 @@ def _median_ttl_days(surv_df) -> np.ndarray:
 
 
 def build_memory_objects(records: list[dict], embeddings: np.ndarray, features: np.ndarray,
-                          feature_slices: dict, survival_model, joint_model, device: str = "cpu") -> list[MemoryObject]:
+                          feature_slices: dict, survival_model, joint_model, device: str = "cpu",
+                          ttl_quantile: float = 0.5) -> list[MemoryObject]:
     importances = importance_score(features, feature_slices)
 
     surv_df = survival_model.predict_surv_df(embeddings.astype("float32"))
-    ttl_days = _median_ttl_days(surv_df)
+    ttl_days = quantile_ttl_days(surv_df, ttl_quantile)
 
     joint_model.eval()
     with torch.no_grad():
@@ -86,9 +98,16 @@ def build_memory_objects(records: list[dict], embeddings: np.ndarray, features: 
 
 
 def format_retrieved_block(results: list[tuple[MemoryObject, float]]) -> str:
+    """Includes each memory's created_at date -- a large fraction of
+    real QA questions (e.g. LoCoMo's temporal-reasoning category, see
+    scripts/run_downstream_qa_eval.py) ask "when did X happen", which is
+    unanswerable from text alone even with perfect retrieval if the date
+    isn't surfaced to the LLM."""
     lines = []
     for obj, score in results:
-        lines.append(f'- "{obj.text}" (relevance score {score:.2f}, predicted utility {obj.utility_prob:.2f})')
+        date_str = obj.created_at.split("T")[0]  # ISO date only, not the full timestamp
+        lines.append(f'- [{date_str}] "{obj.text}" (relevance score {score:.2f}, '
+                      f'predicted utility {obj.utility_prob:.2f})')
     return "\n".join(lines) if lines else "(no relevant memories found)"
 
 

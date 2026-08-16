@@ -9,13 +9,16 @@ Architecture figure: [`docs/figures/architecture.pdf`](docs/figures/architecture
 `docs/architecture.md` for a box-by-box walkthrough of what's built vs.
 still a stub).
 
-**Status: Week 5 of 6.** Dataset (W1), benchmark (W2), the first trained
-survival model + baseline comparison (W3), multi-seed/significance/
-ablation/consistency experiments (W4), and the full joint multi-task model
-+ memory system + retrieval + grounded-QA pipeline (W5) are done. Week 6
-(the paper) is not started -- see `docs/reproducibility.md` "Known gaps"
-for the full honest list before assuming more of this repo works than
-actually does.
+**Status: Week 6 of 6, in progress.** Dataset (W1), benchmark (W2), the
+first trained survival model + baseline comparison (W3),
+multi-seed/significance/ablation/consistency experiments (W4), and the
+full joint multi-task model + memory system + retrieval + grounded-QA
+pipeline (W5) are done. Week 6 asks the real downstream question -- does
+our forgetting policy actually help QA accuracy, not just rank memory
+lifetime well -- and found and fixed a genuine problem along the way (see
+below). The paper write-up itself is not started -- see
+`docs/reproducibility.md` "Known gaps" for the full honest list before
+assuming more of this repo works than actually does.
 
 ## Install
 
@@ -146,6 +149,64 @@ reasoning in the prompt, the LLM flags the ambiguity rather than guessing
 wrong -- a real limitation, documented in `docs/reproducibility.md`, not
 hidden.
 
+## Week-6: does the ranking win actually help downstream QA? (in progress)
+
+Weeks 3-5 validated our lifetime model with C-index -- a metric that only
+checks whether the model RANKS relative memory lifetimes correctly, never
+whether any specific number it outputs is a safe absolute cutoff. Week 6
+asks the real question: when our forgetting policy (Lifetime-head TTL
+expiry + Action-head "forget") decides what to evict, does that actually
+preserve QA-answering accuracy better than naive alternatives, at the same
+storage budget? Tested on two real benchmarks (LoCoMo, LongMemEval) with
+real GPT-4o answering, via `scripts/run_downstream_qa_eval.py`, against
+three baselines: `no_forget` (ceiling), `fifo`, `lru`.
+
+**First result: no.** At the original settings, `ours` scored *worst* of
+all four on both benchmarks' EM/F1 (`results/tables/week6_downstream_qa.md`).
+
+**Root-caused it** with a free, LLM-call-free diagnostic
+(`scripts/diagnose_eviction_evidence.py`) that checks directly whether
+each QA pair's gold-evidence memory survives eviction under each policy:
+
+| Policy | Evidence retention (1,304 covered LoCoMo QA pairs) |
+|---|---|
+| no_forget | 100.0% |
+| lru | 76.8% |
+| fifo | 72.5% |
+| **ours** | **66.9%** |
+
+Broke the `ours` evictions of real evidence down by mechanism: **100% TTL
+expiry, 0% Action-head "forget"** -- the action head's known per-class
+precision gap (Week 5) is NOT the cause. The actual cause: `predicted_ttl_days`
+was defined as the survival curve's **median** crossing (`S(t) = 0.5`).
+Using a median as a hard cutoff is, by construction, a coin-flip threshold
+-- roughly half of records that need to last longer than their own median
+will, by definition, still be needed past it. Measured directly: evicted
+evidence memories had a median predicted TTL of 99.5 days but were needed
+to a median age of 162.9 days (`results/tables/week6_evidence_retention.md`).
+
+**The fix**: made the cutoff quantile configurable (`quantile_ttl_days`,
+`--ttl-quantile`) instead of hardcoding the median. A free sweep across
+quantiles (`results/tables/week6_ttl_quantile_sweep.md`) shows evidence
+retention climbs monotonically as the cutoff moves later (Q=0.5: 66.9% ->
+Q=0.2: 90.8% -> Q=0.1: 95.0%), though it doesn't fully close the gap to
+`fifo`/`lru` at any quantile tested. Confirmed on real EM/F1 with a
+matched, same-145-question controlled comparison (`results/tables/week6_downstream_qa_q0.5_pilot_control.md`
+vs. `..._q0.2_pilot.md` vs. `..._q0.1_pilot.md`): `ours` improved more than
+`fifo` or `lru` did across the same quantile sweep, closing 61% of its
+gap to the `no_forget` ceiling on LoCoMo F1 by Q=0.1, with no reversal yet
+observed. LongMemEval showed no effect either way, as expected (its
+conversations are too small, ~7 memories each, for a cutoff choice to
+matter).
+
+**Next**: `ours` still doesn't out-rank `fifo`/`lru` even after the
+quantile fix -- current hypothesis is that `ours` makes an independent
+per-memory threshold decision rather than a ranked top-N selection like
+`fifo`/`lru` do, and that the already-trained but currently-unused
+Future-Utility head (predicts "will this be referenced again," AUC
+0.71-0.77) may be a better ranking signal to evict by than a raw TTL
+threshold. Not yet implemented.
+
 ## Repo map
 
 ```
@@ -155,13 +216,16 @@ src/memorylife/  the installable package -- data, encoders, features, fusion, he
                  (fusion/cross_attention.py, memory/store/{faiss,chroma}_store.py,
                  memory/store/sqlite_metadata.py are still stubs)
 baselines/       llm_prompted_ttl.py, chatgpt_prompted_ttl.py, gemini_prompted_ttl.py,
-                 bucket_classifier.py, heuristic_ttl.py (implemented);
-                 fifo/lru/mem0/memgpt/... (Week-5 downstream-comparison stubs --
-                 different from the Week-5 joint model, see baselines/README.md)
+                 bucket_classifier.py, heuristic_ttl.py, fifo.py, lru.py, no_forget.py
+                 (implemented, see baselines/README.md); mem0/memgpt/
+                 generative_agents_importance/locomo/longmemeval wrappers still stubs
 scripts/         thin CLIs: preprocess.py, train.py, run_baseline.py, evaluate.py,
                  run_seed_sweep.py, compute_significance.py, compute_richer_metrics.py,
                  consistency_check.py, run_ablations.py, train_joint.py,
-                 run_inference_demo.py, run_all.sh, run_smoke.sh
+                 run_inference_demo.py, build_benchmark.py (Week-6 evidence-coverage
+                 check), run_downstream_qa_eval.py (Week-6 policy comparison),
+                 diagnose_eviction_evidence.py (Week-6 root-cause diagnostic),
+                 run_all.sh, run_smoke.sh
 configs/         documented run parameters (not yet Hydra-wired, see docs/reproducibility.md)
 experiments/     main/ (5-seed sweep), ablation/ (encoder + hyperparameter),
                  joint/ (Week-5 fusion x seed sweep) -- resolved config +

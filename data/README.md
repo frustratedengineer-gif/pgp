@@ -15,14 +15,38 @@ LongMemEval dialogue dumps. See "Known gap" below.
 
 ## Known gap: dataset-generation code
 
-The dialogue -> candidate-memory extraction pipeline (loading raw LoCoMo /
-LongMemEval dialogues, extracting fact statements, determining
-`lifecycle_event`, generating the synthetic conversations for Week 2) is
-**not yet in this repository** — `src/memorylife/data/build_benchmark.py`
-and `scripts/build_benchmark.py` are still empty stubs. `data/raw/*.jsonl`
-arrived already built. Reviewers will ask for this; it needs to be written
-and committed before submission. `data/download.sh` is a placeholder for
-the same reason — see the script for what it should eventually do.
+The dialogue -> candidate-memory extraction pipeline (extracting fact
+statements, determining `lifecycle_event`, generating the synthetic
+conversations for Week 2) that ORIGINALLY produced `data/raw/*.jsonl` is
+still **not in this repository** -- `src/memorylife/data/build_benchmark.py`
+is still an empty stub. `data/download.sh` is a placeholder for the same
+reason.
+
+`scripts/build_benchmark.py`, however, now DOES load and link the raw
+LoCoMo/LongMemEval benchmark files (see below) for the Week-5/6 downstream
+QA-accuracy evaluation -- a narrower job than full extraction: it reads
+already-published QA pairs and dialogue text, and links them back to our
+already-extracted `data/raw/*.jsonl` records via `conversation_id`
+(matches LoCoMo's `sample_id`) and `evidence_dia_id` (matches LoCoMo's
+per-turn `dia_id` / LongMemEval's `haystack_session_ids`). It does not
+reproduce the fact-extraction step itself.
+
+## Raw benchmark files (not committed, not derived -- placed here manually)
+
+`data/raw/locomo10.json` (10 conversations, ~199 QA pairs each) and
+`data/raw/longmemeval_s_cleaned.json` (500 QA pairs, up to 53 haystack
+sessions each) are the original published benchmark files -- full dialogue
+transcripts plus reference question/answer pairs, used by
+`scripts/run_downstream_qa_eval.py` for the downstream memory-system
+comparison (`baselines/README.md`). **Gitignored** under the same
+`data/raw/*` rule as everything else in this directory -- these are
+third-party benchmark data (see the license note in the Sources table
+above), large (LongMemEval's file is ~277MB), and not something this repo
+redistributes. If you need them: LoCoMo is published by the LoCoMo paper's
+authors; LongMemEval by its authors -- check each benchmark's own license
+before use. `conversation_id` in `data/raw/*.jsonl` links directly to
+LoCoMo's `sample_id` field and to `lme_<question_id>` for LongMemEval,
+confirmed by direct lookup (not assumed) before building the eval harness.
 
 ## What's derived vs. what's committed
 
