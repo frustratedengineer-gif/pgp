@@ -206,15 +206,32 @@ a ranked top-N. Added `ours_utility`: rank all memories by the
 already-trained Future-Utility head's `P(retrieved again)` (AUC
 0.71-0.77, previously used only to rerank retrieval results, never for
 eviction) and keep the top-N, same structure as `fifo`/`lru`. Free
-evidence-retention result: `ours_utility` beats `lru` at every quantile
-tested, including at the ORIGINAL unfixed Q=0.5 (0.8765 vs. lru's 0.7676,
-vs. the original `ours`'s 0.6687) -- see
-`results/tables/week6_ranked_eviction_sweep.md`. Confirmed on real EM/F1
-(`results/tables/week6_downstream_qa_q0.2_ranked_pilot.md`, same matched
-145-question sample): `ours_utility` scores EM 0.0917 / F1 0.1949 on
-LoCoMo, matching the `no_forget` ceiling (EM 0.0917 / F1 0.1957) almost
-exactly while using only 91% of its storage, and beating `lru` (EM 0.0833
-/ F1 0.1998) outright on EM.
+evidence-retention result (n=1,304 covered QA pairs -- large enough that
+this is a robust proxy-metric margin): `ours_utility` beats `lru` at
+every quantile tested, including at the ORIGINAL unfixed Q=0.5 (0.8765
+vs. lru's 0.7676, vs. the original `ours`'s 0.6687) -- see
+`results/tables/week6_ranked_eviction_sweep.md`.
+
+**On real EM/F1** (`results/tables/week6_downstream_qa_q0.2_ranked_pilot.md`,
+same matched 145-question sample): `ours_utility` scores EM 0.0917 / F1
+0.1949 on LoCoMo, essentially tying the `no_forget` ceiling (EM 0.0917 /
+F1 0.1957) while using only 91% of its storage. **Bootstrap-tested this
+time** (`results/tables/week6_downstream_significance.md`, paired,
+10,000 resamples, n=120 LoCoMo questions) rather than just reported as a
+raw mean, per a reviewer gap this repo previously had (Week 3/4's
+C-index claims got this treatment, Week 6's EM/F1 claims initially
+didn't): `ours_utility` significantly beats both `fifo` (p=0.002 EM /
+p=0.001 F1) and the original `ours` (p=0.006 EM / p=0.001 F1), and is
+**statistically indistinguishable from the `no_forget` ceiling**
+(EM diff exactly 0 on every one of 10,000 resamples -- it got the
+identical set of questions right; F1 diff -0.0008, CI comfortably
+straddling 0). The vs.-`lru` EM/F1 comparison, however, is **not**
+significant at this sample size (p=0.367 EM / p=0.648 F1) -- "matches
+the ceiling" is the well-supported headline claim here, not "beats lru,"
+which the small paid sample can't yet distinguish from noise. The
+TTL-quantile fix (Fix #1) is independently confirmed significant on F1
+(Q0.2 vs Q0.5: p=0.010; Q0.1 vs Q0.5: p=0.005) though not yet on EM at
+this sample size (p=0.137 / p=0.048).
 
 ## Repo map
 
