@@ -199,13 +199,22 @@ observed. LongMemEval showed no effect either way, as expected (its
 conversations are too small, ~7 memories each, for a cutoff choice to
 matter).
 
-**Next**: `ours` still doesn't out-rank `fifo`/`lru` even after the
-quantile fix -- current hypothesis is that `ours` makes an independent
-per-memory threshold decision rather than a ranked top-N selection like
-`fifo`/`lru` do, and that the already-trained but currently-unused
-Future-Utility head (predicts "will this be referenced again," AUC
-0.71-0.77) may be a better ranking signal to evict by than a raw TTL
-threshold. Not yet implemented.
+**Follow-up -- and this is the actual fix**: `ours` still didn't out-rank
+`fifo`/`lru` after the quantile fix alone, because `ours` makes an
+independent per-memory threshold decision while `fifo`/`lru` always keep
+a ranked top-N. Added `ours_utility`: rank all memories by the
+already-trained Future-Utility head's `P(retrieved again)` (AUC
+0.71-0.77, previously used only to rerank retrieval results, never for
+eviction) and keep the top-N, same structure as `fifo`/`lru`. Free
+evidence-retention result: `ours_utility` beats `lru` at every quantile
+tested, including at the ORIGINAL unfixed Q=0.5 (0.8765 vs. lru's 0.7676,
+vs. the original `ours`'s 0.6687) -- see
+`results/tables/week6_ranked_eviction_sweep.md`. Confirmed on real EM/F1
+(`results/tables/week6_downstream_qa_q0.2_ranked_pilot.md`, same matched
+145-question sample): `ours_utility` scores EM 0.0917 / F1 0.1949 on
+LoCoMo, matching the `no_forget` ceiling (EM 0.0917 / F1 0.1957) almost
+exactly while using only 91% of its storage, and beating `lru` (EM 0.0833
+/ F1 0.1998) outright on EM.
 
 ## Repo map
 

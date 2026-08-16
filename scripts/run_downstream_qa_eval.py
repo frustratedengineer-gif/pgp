@@ -199,7 +199,7 @@ def run_locomo(args, processed, survival_model, joint_model, query_encoder, prom
         print(f"  {sample_id} ({processed['conversation_to_split'][sample_id]}, {len(objects)} memories, "
               f"ours keeps {capacity}):")
 
-        for policy in ("no_forget", "fifo", "lru", "ours"):
+        for policy in ("no_forget", "fifo", "lru", "ours", "ours_utility"):
             active_ids = ours_ids if policy == "ours" else final_active_ids(objects, policy, capacity,
                                                                              last_referenced, as_of)
             store = build_store(objects, active_ids)
@@ -255,7 +255,7 @@ def run_longmemeval(args, processed, survival_model, joint_model, query_encoder,
         ours_ids = final_active_ids(objects, "ours", None, last_referenced, as_of)
         capacity = len(ours_ids)
 
-        for policy in ("no_forget", "fifo", "lru", "ours"):
+        for policy in ("no_forget", "fifo", "lru", "ours", "ours_utility"):
             active_ids = ours_ids if policy == "ours" else final_active_ids(objects, policy, capacity,
                                                                              last_referenced, as_of)
             store = build_store(objects, active_ids)
