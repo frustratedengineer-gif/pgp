@@ -66,9 +66,24 @@ Known non-determinism not yet addressed:
   ran with, but `scripts/*.py` currently take them as argparse defaults,
   not via live Hydra/OmegaConf composition. Low risk (values match), but
   the configs aren't yet the actual source of truth at runtime.
-- **`scripts/build_benchmark.py`**: empty stub. The LoCoMo/LongMemEval/
-  synthetic dataset-generation pipeline is not in this repo (see
-  `data/README.md`).
+- **`scripts/build_benchmark.py`**: was an empty stub through Week 5;
+  Week 6 implemented it, but only as a narrower "link already-published
+  QA pairs to our already-extracted memories" job (`evidence_coverage`),
+  not full dataset generation. The ORIGINAL dialogue -> candidate-memory
+  extraction pipeline that produced `data/raw/*.jsonl` in the first place
+  is still not in this repo (see `data/README.md`).
+- **Corrected, not a live gap anymore**: an earlier pass through Week 6
+  claimed LongMemEval had no dia_id-style evidence linkage (unlike
+  LoCoMo's `qa["evidence"]`) and was therefore excluded from the
+  evidence-retention root-cause diagnostic -- that claim was asserted,
+  not tested, and turned out to be wrong. Verified directly:
+  `evidence_dia_id` matches a `haystack_session_id` for 100% of
+  LongMemEval memories, and `evidence_dia_id in answer_session_ids` gives
+  the same "is this memory the true evidence" label LoCoMo's
+  `qa["evidence"]` provides. `scripts/diagnose_eviction_evidence.py` now
+  covers both benchmarks; see `results/tables/week6_evidence_retention_longmemeval.md`.
+  Lesson for future passes: don't write down "X isn't possible" from a
+  five-minute schema glance without actually testing the join.
 - **Brier score / IBS for non-`our_model` methods** (`results/tables/week4_richer_metrics.md`)
   use a degenerate step-function survival curve built from each baseline's
   scalar predicted-days output (see `src/memorylife/evaluation/richer_metrics.py`

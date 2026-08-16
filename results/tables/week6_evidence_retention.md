@@ -1,9 +1,15 @@
+# Evidence retention: LoCoMo
+
+`ours` retains 1797/2536 memories (70.9%) across all conversations.
+
 | Policy | Evidence retention rate | N covered QA pairs |
 |---|---|---|
 | no_forget | 1.0000 | 1304 |
 | fifo | 0.7247 | 1304 |
 | lru | 0.7676 | 1304 |
 | ours | 0.6687 | 1304 |
+| ours_utility | 0.8765 | 1304 |
+| ours_combo | 0.7316 | 1304 |
 
 ## `ours`-evicted evidence-bearing memories, by mechanism
 
@@ -14,7 +20,7 @@
 | both | 0 | 0.0% |
 | neither(?) | 0 | 0.0% |
 
-## TTL-calibration gap (only meaningful mechanism per the table above)
+## TTL-calibration gap
 
 For each evidence-bearing memory evicted under `ours`, `predicted_ttl_days` (Lifetime head) vs. actual age at the point it was still needed as evidence:
 

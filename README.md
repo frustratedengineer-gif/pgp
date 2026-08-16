@@ -195,9 +195,14 @@ matched, same-145-question controlled comparison (`results/tables/week6_downstre
 vs. `..._q0.2_pilot.md` vs. `..._q0.1_pilot.md`): `ours` improved more than
 `fifo` or `lru` did across the same quantile sweep, closing 61% of its
 gap to the `no_forget` ceiling on LoCoMo F1 by Q=0.1, with no reversal yet
-observed. LongMemEval showed no effect either way, as expected (its
-conversations are too small, ~7 memories each, for a cutoff choice to
-matter).
+observed. LongMemEval showed no effect either way on real EM/F1 -- at the
+time this was attributed to conversations being too small (~7 memories
+each) for a cutoff choice to matter; the free evidence-retention
+diagnostic (see below) later gave the precise reason: `fifo`/`lru` both
+retain evidence PERFECTLY (1.0000) on LongMemEval already, since its
+small conversations rarely make the capacity constraint bind, leaving
+almost no room for a forgetting-policy difference to show up on this
+benchmark at all, for ANY policy.
 
 **Follow-up -- and this is the actual fix**: `ours` still didn't out-rank
 `fifo`/`lru` after the quantile fix alone, because `ours` makes an
@@ -288,6 +293,20 @@ disagreement examples, with an explicit caveat that not every such
 disagreement is EM being too harsh -- one entry ("three years" judged
 equivalent to "2019") looks like a plausible judge error, not an EM
 failure, and is flagged as such rather than presented uncritically.
+
+**Does the root-cause diagnosis hold on LongMemEval too?** (`results/tables/week6_evidence_retention_longmemeval.md`).
+An earlier pass incorrectly asserted LongMemEval had no evidence linkage
+and skipped it entirely; corrected (see `docs/reproducibility.md`) --
+`evidence_dia_id in answer_session_ids` gives a clean evidence label,
+verified against 100% of LongMemEval memories. Across all 92 covered,
+never-trained-on (val/test) LongMemEval questions: `no_forget`/`fifo`/`lru`
+all retain evidence PERFECTLY (1.0000) -- confirming the "not enough room
+for a policy to matter" explanation precisely rather than just plausibly
+-- while `ours` still loses some (0.9783), 100% via TTL expiry again (0
+Action-head evictions, same mechanism as LoCoMo), and `ours_utility`
+recovers most but not all of it (0.9891). So the median-cutoff/ranking
+problems are real and present on LongMemEval too, just rarely large
+enough in this benchmark's small conversations to move real EM/F1.
 
 ## Repo map
 
