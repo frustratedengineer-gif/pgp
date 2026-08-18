@@ -800,6 +800,45 @@ is the continuous analogue of `ours`'s hard `age <= predicted_ttl_days`
 test -- 1.0 for a brand-new memory, 0.0 once past its predicted TTL,
 linear in between.
 
+## Appendix B: Use of Large Language Models
+
+Reviewer gap (comparing against REMem, ICLR 2026, Appendix A): now a
+required disclosure. Two uses, kept separate because they differ in
+kind, not just degree.
+
+**As infrastructure inside the method and evaluation, not as a writing
+aid.** GPT-4o, Gemini 2.5 Pro, and a locally-hosted Qwen2.5-7B are
+evaluated AS baselines (Section 5.1) -- their outputs are an experimental
+subject, since part of this paper's claim is that our approach ranks
+memory lifetime better than prompting them. Separately, GPT-4o is used
+as a real component INSIDE our own pipeline: (a) the grounded-QA
+answering step that every Section 6 downstream number is scored against,
+(b) LLM-judge rescoring (Section 6.8), and (c) generating the `synthetic`
+source dialogues in the dataset itself (Section 3.2). All three are
+disclosed inline at first use throughout the paper; none of them is
+"the LLM helped write this paper" -- they are the system and the
+evaluation harness being studied.
+
+**In the research and writing process itself.** This project's code,
+experiments, and this paper draft were produced through extensive,
+direct collaboration with an AI coding assistant (Claude, Anthropic)
+across the full six-week span -- not limited to grammar-checking or
+minor polishing (contrast REMem's own Appendix A, which states LLMs
+played no significant role beyond that in their case). The assistant
+wrote the implementation code, ran and analyzed the experiments described
+throughout this paper, and drafted substantial portions of this text
+under the author's direction and review. This included catching and
+correcting the project's own prior mistakes rather than only producing
+new results -- e.g. an earlier, untested claim that LongMemEval had no
+evidence-linkage field (Section 6.10) and an earlier overstated claim
+that `ours_utility` "beats `lru` outright" before bootstrap significance
+testing showed otherwise (Section 6.6) were both identified and corrected
+during this same collaborative process, not found by an external
+reviewer after the fact. We disclose this directly, rather than using
+REMem's minimal framing, because the actual degree of AI involvement
+here is materially higher and a reader assessing this work's provenance
+should know that plainly.
+
 ---
 
 *Draft notes for the author, not part of the paper text: every numeric

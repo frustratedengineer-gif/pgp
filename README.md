@@ -401,6 +401,19 @@ not as a confirmed per-category claim. This is a real, useful finding
 regardless: whatever is driving the Fix #2 improvement is NOT hitting
 every question type equally, and a reader should not assume it does.
 
+**Use-of-LLMs disclosure** (reviewer gap, also required by ICLR):
+`paper/draft.md`'s new Appendix B states directly that this project's
+code, experiments, and paper text were produced through extensive,
+direct collaboration with an AI coding assistant across the full
+six-week span -- not limited to grammar-checking, and including catching
+and correcting the project's own prior mistakes (the LongMemEval
+evidence-linkage claim, Section 6.10; the overstated `ours_utility` vs.
+`lru` claim, Section 6.6) during the same process rather than after the
+fact. Kept separate in that appendix from GPT-4o/Gemini/Qwen's role as
+actual baselines and pipeline components (grounded-QA answering,
+LLM-judge scoring, synthetic-data generation), which is a different kind
+of LLM use entirely.
+
 **Test coverage for the Week-6 code** (reviewer gap): none of the new
 scripts/functions above had a test until now -- every number in this
 section was trusted from a single manual run. Added 26 tests across 5
