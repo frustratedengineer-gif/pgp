@@ -378,6 +378,29 @@ human-verified second rater the way REMem's error analysis was -- no
 inter-rater agreement exists, and category boundaries on borderline
 partial answers are a judgment call, not a ground-truth label.
 
+**Does the fix help uniformly, or only on some question types?** (reviewer
+gap, also from REMem, whose every results table is sliced by question
+type): every downstream EM/F1 number above is one aggregate per policy.
+`scripts/breakdown_by_question_type.py` slices the same q0.2 ranked-pilot
+predictions by LoCoMo's own `category` field (Multi-Hop/Single-Hop/
+Temporal/Open-Domain -- verified against `data/raw/locomo10.json` and
+cross-checked against REMem's own published per-category counts, exact
+match) and LongMemEval's own `question_type` field -- free, no new LLM
+calls, reuses predictions already collected.
+
+(`results/tables/week6_qa_by_category.md`) **The effect is concentrated,
+not uniform**: on LoCoMo, `ours_utility` clearly beats `fifo`/`ours` on
+Single-Hop (Judge 0.537 vs. 0.204/0.259, N=54) and Multi-Hop (EM 0.083 vs.
+0.021/0.021, matching `no_forget`, N=48) questions -- but on Temporal
+questions (N=16), EM is IDENTICAL across all 5 policies (0.1875 for every
+single one), meaning this pilot sample shows zero policy effect there at
+all. Small-N caveat stated directly: Open-Domain (N=2) and most
+LongMemEval categories (N=1-8) are too small in this pilot to draw a
+reliable per-category conclusion from alone -- reported for transparency,
+not as a confirmed per-category claim. This is a real, useful finding
+regardless: whatever is driving the Fix #2 improvement is NOT hitting
+every question type equally, and a reader should not assume it does.
+
 **Test coverage for the Week-6 code** (reviewer gap): none of the new
 scripts/functions above had a test until now -- every number in this
 section was trusted from a single manual run. Added 26 tests across 5

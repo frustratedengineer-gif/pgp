@@ -595,6 +595,29 @@ independently verified by a second rater -- there is no inter-rater
 agreement figure, and category boundaries on borderline partial answers
 are a considered judgment call, not a ground-truth label.
 
+### 6.13 Does Fix #2 help every question type equally?
+
+Every downstream EM/F1 number reported so far is one aggregate per
+policy. We slice the same q0.2 ranked-pilot predictions by LoCoMo's own
+`category` field (Multi-Hop, Single-Hop, Temporal, Open-Domain --
+verified against the raw benchmark file and cross-checked against
+REMem's own published per-category counts, an exact match) and
+LongMemEval's own `question_type` field.
+
+The effect is concentrated, not uniform: `ours_utility` clearly beats
+`fifo`/`ours` on LoCoMo's Single-Hop questions (LLM-judge 0.537 vs.
+0.204/0.259, N=54) and Multi-Hop questions (EM 0.083 vs. 0.021/0.021,
+matching the `no_forget` ceiling, N=48) -- but on Temporal questions
+(N=16), EM is identical across all 5 policies (0.1875 in every case),
+i.e. this sample shows zero policy effect there. We state the sample-size
+limitation directly rather than over-interpreting: Open-Domain (N=2) and
+most LongMemEval categories (N=1-8) are too small in this pilot to
+support a per-category conclusion on their own. Still, the qualitative
+takeaway survives the small-N caveat: whatever mechanism drives Fix #2's
+improvement is not hitting every question type equally, and Sections
+6.5-6.7's aggregate numbers should not be read as implying a uniform
+effect.
+
 ## 7. Limitations
 
 We state these directly rather than deferring them to an appendix:
