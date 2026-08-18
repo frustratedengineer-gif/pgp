@@ -441,6 +441,16 @@ just by file path -- the TTL-baseline prompt, the grounded-QA prompt
 LLM-judge prompt, and the documented-but-unexercised memory-extraction
 prompt, clearly labeled as not exercised by any reported result.
 
+**Related Work depth** (reviewer gap): `paper/draft.md`'s Related Work
+section had 4 references; expanded to name-check Mem0, MemGPT,
+MemoryBank, Reflective Memory Management, HippoRAG/HippoRAG 2, GraphRAG,
+Zep/Graphiti, A-Mem, and REMem itself (with real citations, cross-checked
+against sources actually read this session, not invented) -- even though
+this project doesn't benchmark against most of them (see item #1,
+skipped as too costly to stand up). Also cites Cox (1972) and pycox's own
+paper (Kvamme et al., 2019) for the survival-analysis machinery, which
+were previously named only by software package.
+
 **Test coverage for the Week-6 code** (reviewer gap): none of the new
 scripts/functions above had a test until now -- every number in this
 section was trusted from a single manual run. Added 26 tests across 5

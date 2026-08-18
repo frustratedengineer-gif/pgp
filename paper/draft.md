@@ -89,15 +89,49 @@ downstream task.
 
 ## 2. Related Work
 
-**Memory for LLM agents.** Generative Agents (Park et al., 2023) scores
-memories by a hand-tuned recency/importance/relevance blend, decayed
-exponentially; MemGPT (Packer et al., 2023) treats context as a paging
-problem between a fixed working set and external storage; mem0 similarly
-relies on heuristic scoring rather than a learned, calibrated notion of
-"how long will this matter." None of these systems predict an explicit
-time-to-event target, and to our knowledge none evaluate their forgetting
-policy against a matched-storage-budget naive baseline the way Section 6
-does here.
+**Heuristic-scoring memory systems.** Generative Agents (Park et al.,
+2023) scores memories by a hand-tuned recency/importance/relevance blend,
+decayed exponentially; MemGPT (Packer et al., 2023) treats context as an
+OS-style paging problem between a fixed working set and external storage,
+not a lifetime-prediction problem; Mem0 (Chhikara et al., 2025) extracts
+and consolidates conversational memory with a heuristic update mechanism,
+frequently discarding extracted statements by its own internal decision
+rather than a calibrated forgetting policy (an observation also made
+independently by Shu et al., 2026); MemoryBank (Zhong et al., 2024)
+applies time-decay-based consolidation and forgetting directly analogous
+in spirit to our Lifetime head, but as a fixed decay curve rather than a
+per-memory learned prediction; Reflective Memory Management (Tan et al.,
+2025) further refines what to store/retrieve over time via LLM-driven
+reflection rather than a trained model. None of these systems predicts an
+explicit time-to-event target with an evaluable ranking metric, and to
+our knowledge none evaluates its forgetting policy against a
+matched-storage-budget naive baseline the way Section 6 does here.
+
+**Structure-augmented (graph-based) memory systems.** HippoRAG (Gutierrez
+et al., 2024) and HippoRAG 2 (Gutierrez et al., 2025) organize knowledge
+into a graph for associative retrieval and continual updates; GraphRAG
+(Edge et al., 2024) builds LLM-summarized graphs for query-focused
+summarization; Zep/Graphiti (Rasmussen et al., 2025) maintains a temporal
+knowledge graph with context-assembly pipelines; A-Mem (Xu et al., 2025)
+performs agentic, Zettelkasten-style dynamic linking among notes. These
+systems improve retrieval structure over flat vector search, but (per
+REMem's own analysis, which we have no reason to dispute and did not
+independently re-verify) generally do not model an explicit temporal
+dimension for individual memories, and none of them frame memory
+retention as a survival-analysis problem.
+
+**Episodic memory and reasoning.** REMem (Shu et al., 2026), which this
+paper's own reviewer-gap analysis (Sections 6.11-6.13, Appendices A-C)
+is directly modeled on, formalizes episodic memory as time-aware gists
+and facts in a hybrid graph, with an agentic tool-using retriever for
+multi-step temporal reasoning -- evaluated on LoCoMo, REALTALK,
+Complex-TR, and Test of Time, beating Mem0/Graphiti/HippoRAG 2 by a wide
+margin and reporting refusal precision/recall/F1 on LoCoMo's adversarial
+questions, a methodology Section 6.11 reuses directly. REMem's own
+contribution is architectural (how to represent and retrieve episodic
+memory); ours is orthogonal -- a learned, evaluable model of WHEN a
+memory stops being useful, which could in principle sit underneath a
+system like REMem's own retrieval layer rather than compete with it.
 
 **Long-term conversational memory benchmarks.** LoCoMo (Maharana et al.,
 2024) and LongMemEval (Wu et al., 2024) are the two real-conversation
@@ -108,11 +142,17 @@ their dialogue/evidence structure for MemoryLifeBench's censoring labels
 and, in Section 6, for a direct downstream evaluation.
 
 **Survival analysis.** We use the standard Cox proportional hazards model
-(via `pycox`/`torchtuples`) and concordance index, integrated Brier score,
-and time-dependent AUC as evaluation metrics -- standard practice in
-clinical/reliability survival modeling, not novel to this work; the
-contribution is applying this machinery to memory lifecycle prediction and
-carrying it through to a real downstream evaluation.
+(Cox, 1972) via `pycox`/`torchtuples` (Kvamme et al., 2019) and
+concordance index, integrated Brier score, and time-dependent AUC as
+evaluation metrics -- standard practice in clinical/reliability survival
+modeling, not novel to this work; the contribution is applying this
+machinery to memory lifecycle prediction and carrying it through to a
+real downstream evaluation, including the Section 6.3 finding that a
+model can be an excellent RANKER (high C-index) while being
+systematically miscalibrated on the absolute cutoff a deployed policy
+actually thresholds against -- a distinction the clinical survival
+literature is well aware of (calibration vs. discrimination) but that,
+to our knowledge, prior LLM-agent memory-system papers do not discuss.
 
 ## 3. MemoryLifeBench: Problem Formulation and Dataset
 
@@ -699,18 +739,49 @@ metric, not only the ranking metric the model was trained against.
 
 ## References
 
+- Chhikara, P., Khant, D., Aryan, S., Singh, T., Yadav, D. (2025). Mem0:
+  Building Production-Ready AI Agents with Scalable Long-Term Memory.
+  arXiv:2504.19413.
+- Cox, D. R. (1972). Regression Models and Life-Tables. Journal of the
+  Royal Statistical Society, Series B, 34(2), 187-220.
+- Edge, D., Trinh, H., Cheng, N., Bradley, J., Chao, A., Mody, A., Truitt,
+  S., Larson, J. (2024). From Local to Global: A Graph RAG Approach to
+  Query-Focused Summarization. arXiv:2404.16130.
+- Gutierrez, B. J., Shu, Y., Gu, Y., Yasunaga, M., Su, Y. (2024). HippoRAG:
+  Neurobiologically Inspired Long-Term Memory for Large Language Models.
+  NeurIPS 2024.
+- Gutierrez, B. J., Shu, Y., Qi, W., Zhou, S., Su, Y. (2025). From RAG to
+  Memory: Non-Parametric Continual Learning for Large Language Models.
+  arXiv:2502.14802.
+- Kvamme, H., Borgan, O., Scheel, I. (2019). Time-to-Event Prediction with
+  Neural Networks and Cox Regression. Journal of Machine Learning
+  Research, 20(129), 1-30.
 - Maharana, A., Lee, D.-H., Tulyakov, S., Bansal, M., Barbieri, F., Fang,
   Y. (2024). Evaluating Very Long-Term Conversational Memory of LLM
   Agents. arXiv:2402.17753.
-- Wu, D., Wang, H., Yu, W., Zhang, Y., Chang, K.-W., Yu, D. (2024).
-  LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive
-  Memory. arXiv:2410.10813.
+- Packer, C., Fang, V., Patil, S. G., Lin, K., Wooders, S., Gonzalez, J. E.
+  (2023). MemGPT: Towards LLMs as Operating Systems. arXiv:2310.08560.
 - Park, J. S., et al. (2023). Generative Agents: Interactive Simulacra of
-  Human Behavior.
-- Packer, C., et al. (2023). MemGPT: Towards LLMs as Operating Systems.
+  Human Behavior. (Author list not independently re-verified this pass --
+  kept as originally drafted; unlike every other entry in this list, this
+  one was not cross-checked against a source read during this session.)
+- Rasmussen, P., Paliychuk, P., Beauvais, T., Ryan, J., Chalef, D. (2025).
+  Zep: A Temporal Knowledge Graph Architecture for Agent Memory.
+  arXiv:2501.13956.
 - Shu, Y., Jonnalagedda, S. P., Gao, X., Jimenez Gutierrez, B., Qi, W.,
   Das, K., Sun, H., Su, Y. (2026). REMem: Reasoning with Episodic Memory
   in Language Agents. ICLR 2026, arXiv:2602.13530.
+- Tan, Z., Yan, J., Hsu, I.-H., Han, R., Wang, Z., Le, L. T., Song, Y.,
+  Chen, Y., Palangi, H., Lee, G., Iyer, A., Chen, T., Liu, H., Lee, C.-Y.,
+  Pfister, T. (2025). In Prospect and Retrospect: Reflective Memory
+  Management for Long-Term Personalized Dialogue Agents. arXiv:2503.08026.
+- Wu, D., Wang, H., Yu, W., Zhang, Y., Chang, K.-W., Yu, D. (2024).
+  LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive
+  Memory. arXiv:2410.10813.
+- Xu, W., Liang, Z., Mei, K., Gao, H., Tan, J., Zhang, Y. (2025). A-MEM:
+  Agentic Memory for LLM Agents. arXiv:2502.12110.
+- Zhong, W., Guo, L., Gao, Q., Ye, H., Wang, Y. (2024). MemoryBank:
+  Enhancing Large Language Models with Long-Term Memory. AAAI 2024.
 
 ## Appendix A: Formal Definitions
 
