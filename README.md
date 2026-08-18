@@ -414,6 +414,26 @@ actual baselines and pipeline components (grounded-QA answering,
 LLM-judge scoring, synthetic-data generation), which is a different kind
 of LLM use entirely.
 
+**Missing metric: BLEU-1** (reviewer gap): REMem reports F1 + BLEU-1 +
+LLM-judge together on every table; we only had EM/F1. Added
+`memorylife.evaluation.qa_metrics.bleu1` (unigram precision x brevity
+penalty, tested) and `scripts/compute_bleu1.py`, which recomputes it over
+the SAME already-collected q0.2 ranked-pilot predictions -- free, no new
+LLM calls.
+
+| Benchmark | Policy | Mean EM | Mean F1 | Mean BLEU-1 | Mean Judge |
+|---|---|---|---|---|---|
+| locomo | fifo | 0.0417 | 0.1294 | 0.0915 | 0.1833 |
+| locomo | lru | 0.0833 | 0.1998 | 0.1586 | 0.3417 |
+| locomo | no_forget | 0.0917 | 0.1957 | 0.1562 | 0.3333 |
+| locomo | ours | 0.0500 | 0.1575 | 0.1116 | 0.2000 |
+| locomo | **ours_utility** | 0.0917 | 0.1949 | **0.1549** | **0.3500** |
+
+(`results/tables/week6_downstream_qa_bleu1.md`) BLEU-1 tracks F1 closely
+and preserves the same policy ranking already established elsewhere
+(`ours_utility` ~ `no_forget` > `lru` > `ours` > `fifo`) -- a confirmatory
+result, not a new finding, but it closes a real gap in the metric suite.
+
 **Test coverage for the Week-6 code** (reviewer gap): none of the new
 scripts/functions above had a test until now -- every number in this
 section was trusted from a single manual run. Added 26 tests across 5

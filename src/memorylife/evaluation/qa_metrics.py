@@ -11,6 +11,7 @@ Normalization matches the original SQuAD eval script's convention (lower,
 strip punctuation/articles, collapse whitespace) so scores are comparable
 to how LoCoMo/LongMemEval's own papers report EM/F1, not a bespoke metric.
 """
+import math
 import re
 import string
 from collections import Counter
@@ -42,8 +43,34 @@ def token_f1(prediction: str, reference: str) -> float:
     return 2 * precision * recall / (precision + recall)
 
 
+def bleu1(prediction: str, reference: str) -> float:
+    """Unigram BLEU (clipped-count precision x brevity penalty), reviewer
+    gap: REMem (ICLR 2026) reports F1 + BLEU-1 + LLM-judge together on
+    every table; we only had EM/F1. Uses the same normalize_answer
+    tokenization as exact_match/token_f1 for consistency with the rest of
+    this module, rather than pulling in a separate tokenizer/library
+    dependency for one metric. Standard formula (Papineni et al., 2002),
+    n=1: BP=1 if len(pred)>len(ref), else exp(1 - len(ref)/len(pred))."""
+    pred_tokens = normalize_answer(prediction).split()
+    ref_tokens = normalize_answer(reference).split()
+    if not pred_tokens:
+        return 0.0
+
+    ref_counts = Counter(ref_tokens)
+    pred_counts = Counter(pred_tokens)
+    clipped = sum(min(c, ref_counts[tok]) for tok, c in pred_counts.items())
+    precision = clipped / len(pred_tokens)
+
+    if len(pred_tokens) > len(ref_tokens):
+        brevity_penalty = 1.0
+    else:
+        brevity_penalty = math.exp(1 - len(ref_tokens) / len(pred_tokens))
+    return brevity_penalty * precision
+
+
 def score_qa(prediction: str, reference: str) -> dict:
-    return {"em": exact_match(prediction, reference), "f1": token_f1(prediction, reference)}
+    return {"em": exact_match(prediction, reference), "f1": token_f1(prediction, reference),
+            "bleu1": bleu1(prediction, reference)}
 
 
 REFUSAL_RE = re.compile(

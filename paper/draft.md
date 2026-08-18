@@ -445,6 +445,24 @@ establish rather than the stronger claim the proxy metric alone would
 suggest. A larger paid confirmation run is the natural next step and is
 explicitly out of scope for this draft's budget.
 
+As a cross-check against a metric family EM/F1 doesn't cover, we also
+computed BLEU-1 (unigram precision x brevity penalty, `memorylife.
+evaluation.qa_metrics.bleu1`) over these same predictions -- free, no new
+LLM calls, since it is a pure string metric recomputed post hoc:
+
+| Benchmark | Policy | Mean EM | Mean F1 | Mean BLEU-1 | Mean Judge |
+|---|---|---|---|---|---|
+| locomo | fifo | 0.0417 | 0.1294 | 0.0915 | 0.1833 |
+| locomo | lru | 0.0833 | 0.1998 | 0.1586 | 0.3417 |
+| locomo | no_forget | 0.0917 | 0.1957 | 0.1562 | 0.3333 |
+| locomo | ours | 0.0500 | 0.1575 | 0.1116 | 0.2000 |
+| locomo | **ours_utility** | 0.0917 | 0.1949 | **0.1549** | **0.3500** |
+
+(`results/tables/week6_downstream_qa_bleu1.md`) BLEU-1 preserves the same
+ranking as F1 and the judge score (`ours_utility` ~ `no_forget` > `lru` >
+`ours` > `fifo`) -- a confirmatory result across a fourth metric family,
+not a new finding on its own.
+
 ### 6.7 Why does the fix work? A mechanistic explanation
 
 Beyond the outcome, we measured whether the two candidate ranking signals
