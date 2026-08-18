@@ -41,7 +41,12 @@ policy, while remaining statistically indistinguishable from LRU on
 exact-match/F1 at our current sample size. We report this result honestly,
 including where our fix does *not* clear statistical significance, and
 provide a mechanistic explanation (AUC of each candidate ranking signal
-against real QA-evidence relevance) for why the fix works.
+against real QA-evidence relevance) for why the fix works. We also show
+that the no-forgetting "ceiling" itself is not the true achievable
+ceiling: an oracle given only the correct evidence, with no retrieval
+noise, significantly outperforms no-forgetting too (p<0.01), meaning
+retrieval quality is a genuine bottleneck this paper's eviction-policy
+fixes do not address.
 
 ## 1. Introduction
 
@@ -477,7 +482,10 @@ resamples, same-question resampling) rather than reporting raw means:
 **significantly beats `fifo` and the original `ours` policy** (p<0.01
 both metrics) and is **statistically indistinguishable from the
 `no_forget` ceiling** (EM difference exactly 0 across all 10,000
-resamples). It is **not significantly different from `lru`** at this
+resamples) -- though Section 6.14 shows `no_forget` itself is not the
+TRUE achievable ceiling, so this claim should be read as "matches the
+best of the policies actually compared here," not "matches the limit of
+what's achievable." It is **not significantly different from `lru`** at this
 sample size (p=0.367 EM, p=0.648 F1) -- the free-diagnostic sweep in 6.5
 shows a large, consistent advantage over `lru` at every quantile, but we
 report the honest limit of what n=120 real LLM-scored questions can
@@ -679,10 +687,74 @@ improvement is not hitting every question type equally, and Sections
 6.5-6.7's aggregate numbers should not be read as implying a uniform
 effect.
 
+### 6.14 Is `no_forget` actually the ceiling?
+
+Every claim in this paper that a policy "reaches the ceiling" means it
+matches `no_forget` -- but `no_forget` retains every memory and still
+goes through ordinary top-5 retrieval, conflating two different costs:
+how much eviction costs, and how much limiting the prompt to the top-5
+retrieved memories costs, independent of any eviction at all. Following
+REMem's own practice of anchoring results between an Oracle reference
+(given gold evidence only) and a Full-Context reference (the entire
+corpus, uncapped retrieval), we add both: `oracle` builds the memory
+store from ONLY a QA pair's own gold-evidence memories (no retrieval
+noise, the true theoretical ceiling); `full_context` builds the store
+from every memory in the conversation, same as `no_forget`, but with `k`
+set to the full store size so nothing is dropped by the usual top-5 cap.
+
+| Benchmark | Policy | N | Mean EM | Mean F1 |
+|---|---|---|---|---|
+| locomo | oracle | 107 | 0.1589 | 0.3473 |
+| locomo | full_context | 30 | 0.1333 | 0.2980 |
+| locomo | no_forget (for reference) | 120 | 0.0917 | 0.1957 |
+| longmemeval | oracle | 22 | 0.1364 | 0.1814 |
+| longmemeval | full_context | 25 | 0.0800 | 0.1525 |
+| longmemeval | no_forget (for reference) | 25 | 0.0800 | 0.1525 |
+
+(`results/tables/week6_oracle_fullcontext.md`) **`no_forget` is not the
+true ceiling on LoCoMo.** Bootstrap significance, matched on the same 107
+questions where an oracle answer could be built
+(`results/tables/week6_oracle_significance.md`): `oracle` significantly
+beats `no_forget` (EM +0.0654, 95% CI [+0.0187, +0.1215], p=0.0073; F1
++0.1416, 95% CI [+0.0829, +0.2033], p<0.0001). A policy that forgets
+NOTHING still leaves real accuracy on the table relative to what perfect
+retrieval could achieve -- ordinary top-5 retrieval over a large,
+unevicted store is a genuine, independent bottleneck that no eviction
+policy examined in this paper, including `ours_utility`, was ever
+positioned to close, because eviction policy and retrieval quality are
+orthogonal problems. On LongMemEval, the same gap is NOT significant
+(p=0.36 on both metrics, N=22) -- consistent with Section 6.10's
+explanation that small stores (~7 memories) leave little room for
+retrieval noise to matter there, the same structural reason naive
+policies already achieve near-perfect evidence retention on that
+benchmark. `full_context` lands between `oracle` and `no_forget` on
+LoCoMo, suggesting removing the top-5 cap recovers some but not all of
+the gap -- but this specific three-way comparison is underpowered at the
+sample sizes run here (N=22 in the matched oracle/full_context/no_forget
+subset) and we report it as suggestive, not confirmed.
+
+This result does not change any of Sections 6.4-6.7's conclusions about
+which eviction policy is best -- it changes what "best" is measured
+against. `ours_utility` still significantly beats `fifo` and the
+original `ours`, and still matches `no_forget` among the policies
+actually compared. But the honest framing is: this paper closes most of
+the gap between a naive/miscalibrated eviction policy and the best
+eviction policy achievable at a matched storage budget; it does not
+close the separate, larger gap between any eviction policy and a system
+with genuinely better retrieval.
+
 ## 7. Limitations
 
 We state these directly rather than deferring them to an appendix:
 
+- **Retrieval quality, not just eviction policy, is a real bottleneck we
+  do not fix** (Section 6.14): an oracle given only the correct evidence
+  significantly outperforms `no_forget` on LoCoMo (p<0.01), meaning even
+  a policy that forgets nothing is capped below what's achievable by
+  ordinary top-5 retrieval over a large store. This paper's contribution
+  is entirely about WHAT to evict, not how retrieval itself ranks and
+  selects from whatever survives eviction -- a genuinely separate,
+  unaddressed problem.
 - **Censoring convention for real-conversation records** (Section 3.3,
   case 3) is a judgment call with no ground-truth alternative in the
   source data -- a sensitivity analysis under a different censoring-time

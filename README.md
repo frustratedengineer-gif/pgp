@@ -451,6 +451,48 @@ skipped as too costly to stand up). Also cites Cox (1972) and pycox's own
 paper (Kvamme et al., 2019) for the survival-analysis machinery, which
 were previously named only by software package.
 
+**Is `no_forget` actually a ceiling? (reviewer gap -- and this one found
+something new, not just a confirmation.)** REMem always anchors its
+results between "Oracle Message" (given gold evidence only) and
+"Full-Context" (the entire corpus in the prompt). Our `no_forget`
+retains every memory but still goes through ordinary top-5 retrieval --
+conflating "how much does eviction cost us" with "how much does limiting
+the prompt to the top-5 retrieved memories cost us, even with nothing
+evicted." `scripts/eval_oracle_fullcontext.py` adds the two missing
+reference points: `oracle` (store = only the QA pair's own gold-evidence
+memories, no retrieval noise) and `full_context` (store = everything,
+but uncapped by the usual top-5 limit).
+
+| Benchmark | Policy | N | Mean EM | Mean F1 |
+|---|---|---|---|---|
+| locomo | oracle | 107 | 0.1589 | 0.3473 |
+| locomo | full_context | 30 | 0.1333 | 0.2980 |
+| locomo | no_forget (for reference) | 120 | 0.0917 | 0.1957 |
+| longmemeval | oracle | 22 | 0.1364 | 0.1814 |
+| longmemeval | full_context | 25 | 0.0800 | 0.1525 |
+| longmemeval | no_forget (for reference) | 25 | 0.0800 | 0.1525 |
+
+(`results/tables/week6_oracle_fullcontext.md`) **`no_forget` is NOT the
+real ceiling on LoCoMo.** Bootstrap significance, matched on the exact
+same 107 questions (`scripts/compute_oracle_significance.py`,
+`results/tables/week6_oracle_significance.md`): `oracle` significantly
+beats `no_forget` (EM +0.0654, p=0.0073; F1 +0.1416, p<0.0001). This
+means even a policy that forgets NOTHING leaves real accuracy on the
+table relative to what's achievable with perfect retrieval -- ordinary
+top-5 retrieval over a large, unevicted store is itself a genuine,
+independent bottleneck that no eviction-policy fix in this project (not
+even `ours_utility`) was ever positioned to close. On LongMemEval, this
+gap is NOT significant (p=0.36 both metrics, N=22) -- consistent with
+Section 6.10's explanation that LongMemEval's small stores (~7 memories)
+leave little room for retrieval noise to matter, the same reason naive
+policies already achieve near-perfect evidence retention there.
+`full_context` sits between `oracle` and `no_forget` on LoCoMo (removing
+the top-5 cap helps) but does not reach `oracle` -- consistent with a
+large uncapped context itself introducing distractor noise, though this
+specific three-way comparison is underpowered at the sample sizes run
+here (N=22 for the matched oracle/full_context/no_forget subset) and is
+reported as suggestive, not confirmed.
+
 **Test coverage for the Week-6 code** (reviewer gap): none of the new
 scripts/functions above had a test until now -- every number in this
 section was trusted from a single manual run. Added 26 tests across 5
