@@ -521,6 +521,51 @@ TTL-only mechanism seen on LoCoMo (0 Action-head evictions), and
 smaller magnitude on a benchmark where the failure mode has less room to
 manifest.
 
+### 6.11 Does eviction cause hallucination, or just wrong answers?
+
+Every result in 6.2-6.10 scores only LoCoMo's ~1,540 answerable QA pairs.
+LoCoMo also ships ~446 category-5 "adversarial" pairs -- genuinely
+unanswerable questions paired with a plausible-sounding wrong
+`adversarial_answer` decoy -- which we excluded entirely (Section 6.1)
+rather than using to ask a different question: when eviction removes real
+evidence, does the system hallucinate against the decoy, or does it
+honestly refuse? We measure this with the same refusal precision/recall/
+F1 methodology REMem (Shu et al., 2026) uses for exactly this purpose: on
+a balanced 120 answerable + 120 adversarial question sample per policy,
+classify every answer as a refusal (a deterministic phrase match, matching
+the exact behavior our own QA prompt instructs) and score against the
+true unanswerable label.
+
+| Policy | Precision | Recall | F1 |
+|---|---|---|---|
+| no_forget | 0.718 | 0.892 | 0.796 |
+| fifo | 0.639 | 0.883 | 0.741 |
+| lru | 0.709 | 0.892 | 0.790 |
+| ours | 0.648 | 0.892 | 0.751 |
+| **ours_utility** | **0.726** | 0.883 | **0.797** |
+
+(`results/tables/week6_refusal_eval.md`) Recall (does the system refuse a
+genuinely unanswerable question at all) is essentially flat across
+policies, 0.883-0.892 -- confirmed not to be a coincidence by bootstrap
+significance (`results/tables/week6_refusal_significance.md`, n=240,
+10,000 resamples): recall differences are not the story here. Precision
+(when the system DOES refuse, was the question actually unanswerable) is:
+`ours` and `fifo` false-refuse genuinely answerable questions
+significantly more often (63.9-64.8%) than `no_forget`/`lru`/
+`ours_utility` (70.9-72.6%) -- `ours_utility` beats both `ours` (p<0.001)
+and `fifo` (p<0.001) on this metric, and `no_forget` beats both too
+(p=0.001 and p<0.001).
+
+This is an independent confirmation of Sections 6.3-6.5's root cause, via
+a completely different metric family that makes no reference to EM, F1,
+or any evidence-linkage field: when `ours`/`fifo` evict a question's real
+supporting evidence, the model doesn't only get the EM/F1 score wrong --
+it correctly, from its own epistemic standpoint, says "I don't have that
+information," which this metric counts as a false refusal precisely
+because the *eviction*, not the model's reasoning, is what made an
+otherwise-answerable question unanswerable. The fix that already worked
+for EM/F1 (Section 6.5) again lands closest to the ceiling here.
+
 ## 7. Limitations
 
 We state these directly rather than deferring them to an appendix:
@@ -590,6 +635,9 @@ metric, not only the ranking metric the model was trained against.
 - Park, J. S., et al. (2023). Generative Agents: Interactive Simulacra of
   Human Behavior.
 - Packer, C., et al. (2023). MemGPT: Towards LLMs as Operating Systems.
+- Shu, Y., Jonnalagedda, S. P., Gao, X., Jimenez Gutierrez, B., Qi, W.,
+  Das, K., Sun, H., Su, Y. (2026). REMem: Reasoning with Episodic Memory
+  in Language Agents. ICLR 2026, arXiv:2602.13530.
 
 ---
 

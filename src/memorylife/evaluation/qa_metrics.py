@@ -46,6 +46,33 @@ def score_qa(prediction: str, reference: str) -> dict:
     return {"em": exact_match(prediction, reference), "f1": token_f1(prediction, reference)}
 
 
+REFUSAL_RE = re.compile(
+    r"don'?t have (that |this |any |the )?information|"
+    r"do not have (that |this |any |the )?information|"
+    r"no information (is |was )?available|"
+    r"don'?t know|do not know|"
+    r"not (be )?able to (determine|answer|find|tell)|"
+    r"unable to (determine|answer|find|tell)|"
+    r"no relevant information",
+    re.IGNORECASE,
+)
+
+
+def is_refusal(prediction: str) -> bool:
+    """Detects whether a QA answer refuses to answer (matches the exact
+    behavior scripts/inference/prompts/qa_grounded.txt instructs: "say you
+    don't have that information yet"), used to score refusal precision/
+    recall on LoCoMo's category-5 adversarial questions
+    (scripts/eval_refusal.py) -- a real system should refuse these, not
+    hallucinate an answer against the adversarial decoy. Matches ANY
+    refusal signal in the text, including a partial refusal embedded in an
+    otherwise-answered compound question (e.g. "$15 on car wash. I don't
+    have information on a parking ticket."), not just a bare refusal
+    sentence -- calibrated against real GPT-4o outputs collected in Week 6,
+    not written blind."""
+    return bool(REFUSAL_RE.search(prediction))
+
+
 JUDGE_VERDICT_RE = re.compile(r"\b(correct|incorrect)\b", re.IGNORECASE)
 
 

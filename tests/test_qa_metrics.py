@@ -1,6 +1,6 @@
 """EM/F1 scoring for the downstream QA eval -- SQuAD-style normalization
 must actually behave as claimed (case/punctuation/article-insensitive)."""
-from memorylife.evaluation.qa_metrics import exact_match, normalize_answer, token_f1
+from memorylife.evaluation.qa_metrics import exact_match, is_refusal, normalize_answer, token_f1
 
 
 def test_exact_match_is_case_and_punctuation_insensitive():
@@ -23,3 +23,20 @@ def test_normalize_answer_strips_articles_and_punctuation():
 def test_empty_prediction_scores_zero_against_a_real_reference():
     assert exact_match("", "Boston") == 0.0
     assert token_f1("", "Boston") == 0.0
+
+
+def test_is_refusal_detects_real_gpt4o_refusal_phrasings():
+    # calibrated against actual Week-6 predictions, not written blind
+    assert is_refusal("I don't have that information yet.")
+    assert is_refusal("You don't have that information yet.")
+    assert is_refusal("$15 on car wash. I don't have information on a parking ticket.")
+    assert is_refusal("James has pets. I don't have that information for John.")
+    assert is_refusal("Sorry, I don't know.")
+    assert is_refusal("Unable to determine from the retrieved memories.")
+
+
+def test_is_refusal_does_not_false_positive_on_real_answers():
+    assert not is_refusal("2023-05-07")
+    assert not is_refusal("Auntie")
+    assert not is_refusal("Gathering information and a beginners' guide.")
+    assert not is_refusal("Kickboxing, taekwondo.")

@@ -309,6 +309,46 @@ recovers most but not all of it (0.9891). So the median-cutoff/ranking
 problems are real and present on LongMemEval too, just rarely large
 enough in this benchmark's small conversations to move real EM/F1.
 
+**Does eviction cause hallucination, not just wrong answers?** (reviewer
+gap, found by comparing against REMem, ICLR 2026 -- see
+`paper/draft.md`'s gap analysis): every result above scores only LoCoMo's
+~1,540 answerable QA pairs; the ~446 category-5 "adversarial" pairs (no
+real answer, only a plausible-sounding wrong `adversarial_answer` decoy)
+were excluded entirely rather than used to measure whether a policy
+refuses honestly or hallucinates against the decoy. `scripts/eval_refusal.py`
+adds them back, using REMem's own refusal precision/recall/F1
+methodology (Table 6 there): for a balanced 120 answerable + 120
+adversarial question sample per policy, classify every answer as a
+refusal (`memorylife.evaluation.qa_metrics.is_refusal`, calibrated
+against real observed GPT-4o refusal phrasings, not written blind) and
+score against the true unanswerable label.
+
+| Policy | Precision | Recall | F1 |
+|---|---|---|---|
+| no_forget | 0.718 | 0.892 | 0.796 |
+| fifo | 0.639 | 0.883 | 0.741 |
+| lru | 0.709 | 0.892 | 0.790 |
+| ours | 0.648 | 0.892 | 0.751 |
+| **ours_utility** | **0.726** | 0.883 | **0.797** |
+
+(`results/tables/week6_refusal_eval.md`) Recall is essentially flat
+across every policy (0.883-0.892) -- whether a genuinely unanswerable
+question gets hallucinated against the decoy doesn't depend much on the
+eviction policy. **Precision does**: `ours` and `fifo` false-refuse real
+answerable questions substantially more often (63.9-64.8%) than
+`no_forget`/`lru`/`ours_utility` (70.9-72.6%) -- confirmed by bootstrap
+significance (`scripts/compute_refusal_significance.py`,
+`results/tables/week6_refusal_significance.md`): `ours_utility` beats
+both `ours` (p<0.001) and `fifo` (p<0.001) on refusal precision, and
+`no_forget` does too (p<0.01 vs `ours`, p<0.001 vs `fifo`). This is a
+new, independent confirmation of the same root cause as 6.3-6.5 above,
+from a completely different metric family: when `ours`/`fifo` evict a
+real answer's evidence, the system doesn't just answer wrong on EM/F1 --
+it correctly (from its own epistemic standpoint) says "I don't have that
+information," which is scored as a false refusal here precisely because
+the eviction, not the model, is what made the question unanswerable.
+`ours_utility` again lands closest to the `no_forget` ceiling.
+
 **Test coverage for the Week-6 code** (reviewer gap): none of the new
 scripts/functions above had a test until now -- every number in this
 section was trusted from a single manual run. Added 26 tests across 5
