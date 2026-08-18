@@ -427,11 +427,16 @@ sklearn's `roc_auc_score`) with no standalone pure logic worth isolating.
 
 Housekeeping gap noticed while doing this, not yet fixed: `tests/test_audit_log.py`,
 `test_features.py`, `test_memory_store.py`, `test_pipeline_smoke.py`, and
-`test_schema.py` are pre-existing empty stub files (0 bytes, predate Week 6),
-and `.github/workflows/ci.yml`/`reproduce-smoke.yml`/`Makefile` are likewise
-empty -- there is currently no CI actually running any of these 46 tests on
-push. Flagging honestly rather than letting "we have tests" imply "tests run
-automatically."
+`test_schema.py` are pre-existing empty stub files (0 bytes, predate Week 6).
+`Makefile` is likewise empty. **Update**: `.github/workflows/ci.yml` and
+`reproduce-smoke.yml` used to be empty too -- which meant every single push
+to `main` was silently failing two GitHub Actions runs (0s each, invalid
+YAML) and generating a failure email, discovered only when the emails
+became impossible to ignore. Deleted rather than left empty, since an
+empty workflow file is worse than no workflow file at all: it fails
+loudly for no reason instead of just not existing. There is still no CI
+actually running any of these 46 tests on push -- flagging honestly
+rather than letting "we have tests" imply "tests run automatically."
 
 ## Repo map
 
