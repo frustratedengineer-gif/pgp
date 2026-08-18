@@ -168,7 +168,8 @@ the memory text `e` -> small MLP (213,889 parameters) -> log partial
 hazard, trained with the Cox partial-likelihood loss on
 `(duration_days, event_observed)` pairs, correctly handling right
 censoring. No feature fusion, no other heads, no memory store or
-retrieval loop at this stage.
+retrieval loop at this stage. Formal notation (hazard/survival function,
+partial-likelihood objective, C-index): Appendix A.1.
 
 ### 4.2 Joint multi-task model
 
@@ -318,8 +319,10 @@ live query stream), and `ours` (our original policy: Lifetime-head TTL
 expiry + Action-head "forget"). `fifo`/`lru`'s capacity N is set to
 `ours`'s own natural final active count per conversation, so this is an
 apples-to-apples storage-budget comparison, not an arbitrary fixed
-budget. Evaluated on real LoCoMo and LongMemEval questions, answered by
-GPT-4o over the retrieved memory store, scored by exact match (EM) and
+budget. Formal definitions of all six policies (`no_forget`, `fifo`,
+`lru`, `ours`, `ours_utility`, `ours_combo`): Appendix A.2. Evaluated on
+real LoCoMo and LongMemEval questions, answered by GPT-4o over the
+retrieved memory store, scored by exact match (EM) and
 token-F1. LoCoMo's category-5 "adversarial" QA pairs (no `answer` field,
 only a `adversarial_answer` decoy) are excluded, since scoring against
 the decoy would reward hallucination.
@@ -690,6 +693,112 @@ metric, not only the ranking metric the model was trained against.
 - Shu, Y., Jonnalagedda, S. P., Gao, X., Jimenez Gutierrez, B., Qi, W.,
   Das, K., Sun, H., Su, Y. (2026). REMem: Reasoning with Episodic Memory
   in Language Agents. ICLR 2026, arXiv:2602.13530.
+
+## Appendix A: Formal Definitions
+
+Reviewer gap (comparing against REMem, ICLR 2026, Appendix B): Sections 4
+and 6 above describe the survival model and the eviction policies in
+prose. This makes both precise, matching the actual code exactly (file:line
+references given throughout) rather than restating it in different words.
+
+### A.1 Survival model
+
+For memory record `i`, let `z_i` be its representation (a frozen BGE
+embedding for the single-task model of Section 4.1, or the fused
+embedding+feature vector `z` for the joint model of Section 4.2). The
+model learns a risk score `f_theta(z_i)` (the MLP's scalar output) and
+defines a hazard function in the standard Cox proportional-hazards form:
+
+```
+h(t | z_i) = h_0(t) * exp(f_theta(z_i))
+S(t | z_i) = exp(-integral_0^t h(u | z_i) du) = S_0(t) ^ exp(f_theta(z_i))
+```
+
+where `h_0(t)` / `S_0(t)` are the baseline hazard/survival, estimated
+non-parametrically from the training set (`survival_model.
+compute_baseline_hazards`, `src/memorylife/models/checkpoint.py`) --
+`f_theta` is the only part that is learned; the baseline is fit, not
+trained end-to-end.
+
+**Observed data.** Each record has `(T_i, delta_i)`: `T_i = duration_days`
+(time from `injected_at` to the reference event), `delta_i =
+event_observed in {0, 1}` (1 = event actually observed, 0 = right-censored
+per the three cases in Section 3.3).
+
+**Training objective.** The Cox partial log-likelihood over the
+uncensored subset `D = {i : delta_i = 1}`:
+
+```
+L(theta) = sum_{i in D} [ f_theta(z_i) - log( sum_{j in R(T_i)} exp(f_theta(z_j)) ) ]
+R(t) = { j : T_j >= t }   (the risk set still "alive" at time t)
+```
+
+fit via `pycox`'s `CoxPH` (`src/memorylife/losses/cox_partial.py`) rather
+than reimplemented here -- see that module's own docstring for why.
+
+**Evaluation metric (C-index).** Over comparable pairs `E = {(i, j) : T_i
+< T_j, delta_i = 1}` (permissible pairs, i.e. `i`'s event time is known
+to precede `j`'s):
+
+```
+C = (1 / |E|) * sum_{(i,j) in E} 1[ f_theta(z_i) > f_theta(z_j) ]
+```
+
+-- the fraction of permissible pairs the model ranks in the correct
+order. Note `C` depends only on the ORDERING of `f_theta`, not its scale
+-- this is exactly why C-index cannot validate the absolute quantile
+cutoff `A.2` below chooses (Section 6.3, cause 1).
+
+**Quantile TTL cutoff** (`quantile_ttl_days`,
+`src/memorylife/inference/pipeline.py:45`, the Week-6 Fix #1 target):
+
+```
+TTL_q(z_i) = sup { t : S(t | z_i) >= q }
+```
+
+the latest time the record's own survival curve is still at or above
+survival probability `q`, capped at `MAX_SURVIVAL_TTL_DAYS = 3650` for
+curves that never drop below `q`. `q = 0.5` (the median) was the
+hardcoded Week-3/5 default; Week 6 makes `q` configurable.
+
+### A.2 Eviction policies
+
+Let `O = {o_1, ..., o_n}` be a conversation's memory objects, each with
+`predicted_ttl_days(o) = TTL_q(z_o)`, `utility_prob(o) in [0, 1]` (the
+Future-Utility head's output), `action(o) in {store, update, merge,
+forget}` (the Action head's output), `created_at(o)`, and `age(o, t) =
+t - created_at(o)`. Let `t` be the conversation's current timestamp (the
+latest `injected_at` across all of `O`).
+
+**Threshold policy** (`ours`, `scripts/run_downstream_qa_eval.py:109-110`):
+
+```
+Active_ours(O, t) = { o in O : action(o) != forget  AND  age(o, t) <= predicted_ttl_days(o) }
+```
+
+an INDEPENDENT per-memory decision -- no memory's inclusion depends on
+any other memory's score.
+
+**Ranked top-N policies** (`fifo`, `lru`, `ours_utility`, `ours_combo`),
+all sharing one shape with capacity `N = |Active_ours(O, t)|` (matched to
+`ours`'s own natural budget, so every policy is compared at the same
+storage cost) and a policy-specific score:
+
+```
+Active_rank(O, N, score) = top-N of O ranked by score(o), descending
+
+score_fifo(o)     = created_at(o)
+score_lru(o)      = last_referenced(o)                         (-inf if never referenced)
+score_utility(o)  = utility_prob(o)                             (Fix #2)
+score_combo(o)    = 0.5 * utility_prob(o) + 0.5 * remaining_life_fraction(o, t)
+
+remaining_life_fraction(o, t) = clip(1 - age(o, t) / predicted_ttl_days(o), 0, 1)
+```
+
+(`scripts/run_downstream_qa_eval.py:95-131`). `remaining_life_fraction`
+is the continuous analogue of `ours`'s hard `age <= predicted_ttl_days`
+test -- 1.0 for a brand-new memory, 0.0 once past its predicted TTL,
+linear in between.
 
 ---
 
