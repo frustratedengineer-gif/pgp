@@ -566,6 +566,35 @@ because the *eviction*, not the model's reasoning, is what made an
 otherwise-answerable question unanswerable. The fix that already worked
 for EM/F1 (Section 6.5) again lands closest to the ceiling here.
 
+### 6.12 Error-mode taxonomy
+
+Every quantitative result above is a rate; the qualitative examples in
+6.9 are hand-picked, not a systematic sample. Following REMem's error
+analysis (100 sampled errors, bucketed into named categories), we draw a
+reproducible 100-question sample of wrong (judge=0) predictions pooled
+across all 5 policies and both benchmarks, and categorize each one.
+
+| Category | % | Meaning |
+|---|---|---|
+| REFUSAL | 54% | False refusal -- "I don't have that information" on an answerable question |
+| WRONG_VALUE | 21% | Confident but incorrect specific fact or hallucinated detail |
+| INCOMPLETE | 15% | Captured only part of a multi-item reference answer |
+| DATE_OFF_BY_ONE | 5% | Date/relative-date conversion off by ~1 day/unit |
+| REASONING_ERROR | 2% | Dropped a comparative/causal relationship in the question |
+| JUDGE_ERROR_CANDIDATE | 3% | Substantively correct; likely a judge scoring mistake |
+
+(`results/tables/week6_error_taxonomy.md`) False refusal is the dominant
+failure mode by a wide margin -- not wrong guesses, not date-arithmetic
+mistakes, not dropped multi-step reasoning. This quantifies what Section
+6.11's refusal-precision result already implied: most of what looks like
+"the model got the question wrong" is, on inspection, "the eviction
+policy removed the evidence and the model correctly reported that." We
+state the methodology limitation directly rather than presenting this as
+equivalent to REMem's human error analysis: this categorization is a single-pass manual read-through, not
+independently verified by a second rater -- there is no inter-rater
+agreement figure, and category boundaries on borderline partial answers
+are a considered judgment call, not a ground-truth label.
+
 ## 7. Limitations
 
 We state these directly rather than deferring them to an appendix:

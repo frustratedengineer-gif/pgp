@@ -349,6 +349,35 @@ information," which is scored as a false refusal here precisely because
 the eviction, not the model, is what made the question unanswerable.
 `ours_utility` again lands closest to the `no_forget` ceiling.
 
+**What does "wrong" actually mean here?** (reviewer gap, also from
+comparing against REMem, which samples 100 errors and buckets them by
+hand): every claim above is a rate or a handful of hand-picked
+qualitative examples, never a systematic breakdown of HOW the wrong
+answers fail. `scripts/categorize_error_sample.py` draws a reproducible
+100-question sample of wrong (judge=0) predictions, pooled across all 5
+policies and both benchmarks, and buckets each one:
+
+| Category | % | Meaning |
+|---|---|---|
+| REFUSAL | 54% | False refusal -- "I don't have that information" on a question that IS answerable |
+| WRONG_VALUE | 21% | Confident but incorrect specific fact / hallucinated detail |
+| INCOMPLETE | 15% | Captured only part of a multi-item reference answer |
+| DATE_OFF_BY_ONE | 5% | Date/relative-date conversion off by ~1 day/unit |
+| REASONING_ERROR | 2% | Dropped a comparative/causal relationship in the question |
+| JUDGE_ERROR_CANDIDATE | 3% | Looks substantively correct; likely a judge scoring mistake |
+
+(`results/tables/week6_error_taxonomy.md`) **False refusal is the
+dominant failure mode by a wide margin (54%)** -- not wrong guesses, not
+date-arithmetic errors, not dropped reasoning. This puts a number behind
+what the refusal-precision result above already implied: most of what
+looks like "the model got it wrong" is actually "the eviction policy
+removed the evidence and the model correctly said so." Stated directly,
+as a real limitation: this categorization was done by single-pass manual
+read-through (by the AI assistant doing this work), not an independently
+human-verified second rater the way REMem's error analysis was -- no
+inter-rater agreement exists, and category boundaries on borderline
+partial answers are a judgment call, not a ground-truth label.
+
 **Test coverage for the Week-6 code** (reviewer gap): none of the new
 scripts/functions above had a test until now -- every number in this
 section was trusted from a single manual run. Added 26 tests across 5
