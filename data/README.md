@@ -4,9 +4,14 @@
 
 | Source | What it is | License note |
 |---|---|---|
-| `synthetic` | LLM-generated multi-session dialogues with facts injected and probe questions scheduled by us (Week 2) | Ours; safe to redistribute |
-| `longmemeval` | Candidate memories extracted from the LongMemEval benchmark's multi-session dialogues | Third-party benchmark; check LongMemEval's license before redistributing full raw text |
-| `locomo` | Candidate memories extracted from the LoCoMo benchmark's multi-session dialogues | Third-party benchmark; check LoCoMo's license before redistributing full raw text |
+| `synthetic` | LLM-generated multi-session dialogues with facts injected and probe questions scheduled by us (Week 2) | Ours |
+| `longmemeval` | Candidate memories extracted from the LongMemEval benchmark's multi-session dialogues | Third-party (MIT-declared repo) |
+| `locomo` | Candidate memories extracted from the LoCoMo benchmark's multi-session dialogues | Third-party (CC BY-NC 4.0) |
+
+See `LICENSE-DATA` at the repo root for the resolved combined license
+(CC BY-NC 4.0, non-commercial only, driven by LoCoMo's own license) and
+required attribution -- this table is a summary, not the authoritative
+statement.
 
 `data/raw/{train,val,test}.jsonl` are the pre-extracted, pre-labeled memory
 records (one fact-statement per record, with `injected_at` / `invalidated_at`

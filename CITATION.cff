@@ -1,13 +1,14 @@
-# TODO: placeholder -- fill in real author names/affiliations/DOI once the
-# paper (Week 6) exists. Keeping this file present now so the GitHub "Cite
-# this repository" button works as soon as it's filled in.
+# No DOI yet: this cites the repository/software itself (standard CITATION.cff
+# use, doesn't require a published paper). Update `version`/`date-released` on
+# future releases, and add a `preferred-citation` block once the Week-6
+# write-up is submitted somewhere with its own venue/DOI.
 cff-version: 1.2.0
-message: "If you use this benchmark or model, please cite it as below (placeholder -- update after the paper is written)."
+message: "If you use this benchmark or model, please cite it as below."
 title: "MemoryLifeBench: Memory Lifetime Prediction as a Time-to-Event Problem"
 authors:
-  - family-names: "TODO"
-    given-names: "TODO"
-date-released: 2026-08-08
-version: "0.3.0"
-repository-code: "TODO: repo URL once pushed"
+  - family-names: "Shendge"
+    given-names: "Bhargav"
+date-released: 2026-08-18
+version: "0.5.0"
+repository-code: "https://github.com/frustratedengineer-gif/pgp"
 license: MIT

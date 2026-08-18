@@ -365,17 +365,20 @@ experiments/     main/ (5-seed sweep), ablation/ (encoder + hyperparameter),
                  checkpoint + metrics.json + log per run
 results/         tables/ (committed), raw/ (gitignored)
 docs/            architecture.md, benchmark_card.md, reproducibility.md, figures/
-tests/           test_censoring.py, test_survival_loss.py (real coverage);
-                 test_schema.py, test_features.py, ... (still empty stubs)
+tests/           test_censoring.py, test_survival_loss.py, and 5 new Week-6
+                 files (26 tests, see Week-6 section above) have real
+                 coverage; test_schema.py, test_features.py, ... are still
+                 empty stubs (pre-existing, not wired into any CI)
 ```
 
 Full recommended tree and checklist mapping: `docs/repo_structure_reference.md`.
 
 ## Citation
 
-See `CITATION.cff` (placeholder -- authors/DOI to be filled in for Week 6).
+See `CITATION.cff` (cites the repository itself; no DOI/paper venue yet).
 
 ## License
 
-Code: MIT (`LICENSE`, placeholder copyright holder -- confirm before
-publishing). Data: unresolved, see `LICENSE-DATA`.
+Code: MIT (`LICENSE`). Data: CC BY-NC 4.0, non-commercial only -- see
+`LICENSE-DATA` for the per-source breakdown and why (LoCoMo's own license
+is the binding constraint).
