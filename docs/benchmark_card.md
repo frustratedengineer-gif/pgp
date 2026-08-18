@@ -81,6 +81,7 @@ longmemeval's low event rate reflects that most of its records are
   has been done -- `docs/annotation_guidelines.md` is empty because no
   human annotation step exists yet; all labels are programmatically
   derived. If any manual QA is added later, document it there.
-- License terms for redistributing LongMemEval/LoCoMo-derived text have not
-  been checked; `data/raw/` is gitignored partly for this reason (see
-  `data/README.md`).
+- ~~License terms for redistributing LongMemEval/LoCoMo-derived text have
+  not been checked~~ -- resolved Week 6: see `LICENSE-DATA` (CC BY-NC 4.0,
+  LoCoMo's own license is the binding constraint). `data/raw/` remains
+  gitignored regardless (see `data/README.md`).

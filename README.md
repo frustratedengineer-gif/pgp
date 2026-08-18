@@ -9,16 +9,17 @@ Architecture figure: [`docs/figures/architecture.pdf`](docs/figures/architecture
 `docs/architecture.md` for a box-by-box walkthrough of what's built vs.
 still a stub).
 
-**Status: Week 6 of 6, in progress.** Dataset (W1), benchmark (W2), the
+**Status: Week 6 of 6, complete.** Dataset (W1), benchmark (W2), the
 first trained survival model + baseline comparison (W3),
-multi-seed/significance/ablation/consistency experiments (W4), and the
+multi-seed/significance/ablation/consistency experiments (W4), the
 full joint multi-task model + memory system + retrieval + grounded-QA
-pipeline (W5) are done. Week 6 asks the real downstream question -- does
-our forgetting policy actually help QA accuracy, not just rank memory
-lifetime well -- and found and fixed a genuine problem along the way (see
-below). The paper write-up itself is not started -- see
-`docs/reproducibility.md` "Known gaps" for the full honest list before
-assuming more of this repo works than actually does.
+pipeline (W5), and the downstream-QA forgetting-policy evaluation +
+root-cause fixes + reviewer-gap hardening (W6) are all done. A first paper
+draft exists at [`paper/draft.md`](paper/draft.md) -- every numeric claim
+in it is cited to its source table under `results/tables/`. See
+`docs/reproducibility.md` "Known gaps" for the full honest list of what's
+still not built before assuming more of this repo works than actually
+does.
 
 ## Install
 

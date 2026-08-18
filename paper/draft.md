@@ -1,0 +1,602 @@
+# MemoryLifeBench: Memory Lifetime Prediction as a Time-to-Event Problem
+
+Bhargav Shendge
+
+**Status: draft, Week 6 of 6. Not yet submitted anywhere. Numbers below
+are pulled directly from `results/tables/*.md`; every claim is cited to
+its source table so it can be checked against the repository.**
+
+## Abstract
+
+Personal AI assistants that accumulate memories over long-running
+conversations eventually face a storage problem: which memories should be
+kept, and for how long? Prior memory-management systems for LLM agents
+typically answer this with a binary or heuristic decision ("store or
+don't," "forget after N days," recency/frequency scores). We reframe the
+problem as **survival analysis**: instead of predicting whether a memory
+matters, we predict *how long it will remain useful*, using the standard
+time-to-event machinery (right-censored durations, concordance index) from
+clinical and reliability statistics. A small model (213,889 parameters, a
+single MLP on top of a frozen sentence embedding) trained with a Cox
+partial-likelihood loss beats three LLM-prompted baselines (GPT-4o,
+Gemini 2.5 Pro, a locally hosted Qwen2.5-7B) and two heuristic baselines on
+concordance index by a wide, statistically significant margin
+(p<0.001 against every baseline, bootstrap). Extending this to a joint
+multi-task model (Lifetime, Action, Future-Utility heads sharing one fused
+representation, still under 500K trainable parameters) improves ranking
+quality further and adds usable action/utility signals. But a good ranking
+metric is not the same as a good deployment policy: when we tested whether
+our learned forgetting policy actually preserves downstream question-
+answering quality at a matched storage budget against naive
+first-in-first-out and least-recently-used baselines, our original policy
+*lost* to both. We diagnose this failure to two root causes -- a
+miscalibrated absolute threshold (the median of the survival curve is a
+coin-flip cutoff by construction) and a poor decision *structure*
+(independent per-memory thresholding instead of ranked top-N selection) --
+and show that fixing the second one closes almost the entire gap: ranking
+memories by the already-trained Future-Utility head's score, instead of
+thresholding the Lifetime head's TTL estimate, reaches the same downstream
+accuracy as a no-forgetting ceiling and significantly beats the original
+policy, while remaining statistically indistinguishable from LRU on
+exact-match/F1 at our current sample size. We report this result honestly,
+including where our fix does *not* clear statistical significance, and
+provide a mechanistic explanation (AUC of each candidate ranking signal
+against real QA-evidence relevance) for why the fix works.
+
+## 1. Introduction
+
+**Motivation.** Long-running personal AI assistants accumulate a growing
+store of extracted facts ("memories") about the user across sessions.
+Unbounded storage is not viable at scale, and unbounded context windows do
+not solve the problem either -- retrieval quality degrades as the store
+grows, and stale or contradicted facts actively hurt answer quality if
+never removed. Existing memory-system designs (Generative Agents'
+importance scoring, MemGPT's paging, mem0's heuristic decay) treat
+"should this memory be forgotten" as a scalar importance or recency score
+with no explicit temporal semantics: none of them predict *when* a memory
+will stop being useful.
+
+**Our reframing.** We treat every memory as a survival-analysis subject: a
+statement is "born" at `injected_at` and "dies" (becomes invalid,
+contradicted, superseded, or simply never referenced again) at some later
+time, possibly never observed within the data we have (right-censoring).
+This gives us access to a mature, well-understood statistical toolkit
+(Cox proportional hazards, concordance index, time-dependent AUC,
+integrated Brier score) instead of ad hoc importance heuristics, and lets
+us evaluate "how good is this lifetime prediction" independent of any one
+downstream task.
+
+**Contributions.**
+1. **MemoryLifeBench**, a 10,152-record benchmark of memory statements
+   with time-to-event labels, combining synthetic dialogues with exact
+   provable lifetimes and real conversations extracted from two published
+   long-term-memory benchmarks (LoCoMo, LongMemEval), split by conversation
+   to avoid leakage (Section 3).
+2. A lightweight survival model (a single MLP on frozen sentence
+   embeddings) that beats three frontier/local LLM baselines and two
+   heuristics at ranking memory lifetimes, with a full multi-seed,
+   multi-metric, statistically tested evaluation (Section 5).
+3. A joint multi-task extension (Lifetime + Action + Future-Utility heads
+   sharing one representation) that improves on the single-task model and
+   adds two more usable signals for a real memory system (Section 5.3).
+4. A rigorous, honestly-reported test of whether any of this actually
+   helps: a matched-storage-budget downstream QA comparison against naive
+   forgetting policies, a negative initial result, a root-cause diagnosis,
+   two fixes, and a confirmation on real LLM-scored QA accuracy with
+   bootstrap significance testing throughout (Section 6). This section
+   also reports where our fix does *not* reach significance, rather than
+   only the results that support the headline claim.
+
+## 2. Related Work
+
+**Memory for LLM agents.** Generative Agents (Park et al., 2023) scores
+memories by a hand-tuned recency/importance/relevance blend, decayed
+exponentially; MemGPT (Packer et al., 2023) treats context as a paging
+problem between a fixed working set and external storage; mem0 similarly
+relies on heuristic scoring rather than a learned, calibrated notion of
+"how long will this matter." None of these systems predict an explicit
+time-to-event target, and to our knowledge none evaluate their forgetting
+policy against a matched-storage-budget naive baseline the way Section 6
+does here.
+
+**Long-term conversational memory benchmarks.** LoCoMo (Maharana et al.,
+2024) and LongMemEval (Wu et al., 2024) are the two real-conversation
+benchmarks we build on; both provide multi-session dialogues with
+reference QA pairs but were designed to evaluate end-to-end memory
+systems' QA accuracy, not lifetime prediction in isolation -- we repurpose
+their dialogue/evidence structure for MemoryLifeBench's censoring labels
+and, in Section 6, for a direct downstream evaluation.
+
+**Survival analysis.** We use the standard Cox proportional hazards model
+(via `pycox`/`torchtuples`) and concordance index, integrated Brier score,
+and time-dependent AUC as evaluation metrics -- standard practice in
+clinical/reliability survival modeling, not novel to this work; the
+contribution is applying this machinery to memory lifecycle prediction and
+carrying it through to a real downstream evaluation.
+
+## 3. MemoryLifeBench: Problem Formulation and Dataset
+
+### 3.1 Time-to-event framing
+
+For every memory record we define a duration `T = duration_days` (time
+from when the statement was made, `injected_at`, to the reference event)
+and an event indicator `delta = event_observed` (1 if the event was
+actually observed, 0 if censored). A model predicts a hazard/survival
+function `S(t|z)` over an embedding `z` of the memory text; ranking
+quality is measured by the concordance index (C-index), which is
+rank-only and invariant to monotonic rescaling of the risk score -- a
+property that becomes directly relevant to a real bug found in Section 6.
+
+### 3.2 Data sources and composition
+
+| Source | Train | Val | Test | What it is |
+|---|---|---|---|---|
+| synthetic | 3,199 | 256 | 265 | LLM-generated multi-session dialogues with facts injected and probe questions scheduled by construction (exact, provable lifetimes) |
+| longmemeval | 3,162 | 359 | 375 | Candidate memories extracted from LongMemEval multi-session dialogues |
+| locomo | 1,936 | 324 | 276 | Candidate memories extracted from LoCoMo multi-session dialogues |
+| **Total** | **8,297** | **939** | **916** | |
+
+Splits are by `conversation_id` (568 / 71 / 71 conversations), verified
+disjoint -- no conversation's memories leak across splits. Event rate:
+37.2% train, 35.5% val, 36.6% test (by source, train: locomo 48.8%,
+synthetic 43.1%, longmemeval 24.1% -- longmemeval's low rate reflects that
+most of its records are never referenced again within the transcript,
+i.e. administratively censored rather than genuinely permanent).
+(`docs/benchmark_card.md`)
+
+### 3.3 Censoring convention
+
+A memory is censored (no observed invalidation/update/contradiction/
+expiry within the data) under three cases: (1) event observed, `T =
+invalidated_at - injected_at`; (2) censored with scheduled probes
+(synthetic only), `T = max(probe_at) - injected_at`; (3) censored with no
+probes (real conversations), `T = conversation_max_timestamp -
+injected_at`, an administrative-censoring proxy using the latest timestamp
+seen anywhere in that conversation. Real conversations have a median of 8
+memory records spanning a median 17.5 days (up to 298 days), so this proxy
+is meaningfully informative, not a single global cutoff. **This is a
+judgment call, not a given fact** -- case 3 has no ground-truth alternative
+in the source data, and we flag it here rather than presenting it as
+settled. (`docs/benchmark_card.md`)
+
+## 4. Method
+
+### 4.1 Survival model (single-task)
+
+A single learned component: frozen BGE-base (768-d) sentence embedding of
+the memory text `e` -> small MLP (213,889 parameters) -> log partial
+hazard, trained with the Cox partial-likelihood loss on
+`(duration_days, event_observed)` pairs, correctly handling right
+censoring. No feature fusion, no other heads, no memory store or
+retrieval loop at this stage.
+
+### 4.2 Joint multi-task model
+
+Six off-the-shelf, frozen, non-fine-tuned auxiliary feature extractors
+(Intent, Entities/NER, Temporal, Emotion/Preference, Novelty,
+Contradiction -- ~433M frozen parameters combined, single forward pass
+each, zero autoregressive generation) are fused with the BGE embedding via
+either a learned gate or plain concatenation, feeding three jointly
+trained heads sharing one fused representation `z`:
+
+- **Lifetime head**: the same Cox survival objective as 4.1, now over the
+  fused representation.
+- **Action head**: 4-way classification (`store`/`update`/`merge`/
+  `forget`), trained on labels derived from `lifecycle_event`, under
+  aggressive inverse-frequency class weighting.
+- **Future-Utility head**: binary `P(retrieved again)`, trained only on
+  the subset of records with a genuine usage label
+  (`observed_usage`/`no_usage_observed`).
+
+Trained with a custom loop (not `pycox`'s single-task `CoxPH.fit()`
+wrapper, which cannot share gradients across heads). A fourth
+"Importance" score exists in the architecture but is a documented
+hand-written heuristic, not a learned head -- no ground-truth importance
+label exists anywhere in the dataset schema, and we do not claim it is
+learned. Total trainable parameters for the concat-fusion joint model:
+425,734 (fusion itself adds zero parameters for concat).
+
+### 4.3 Memory system
+
+Trained heads feed a real memory-lifecycle system: `MemoryObject`
+instances (`{text, embedding, importance, predicted_ttl_days, action,
+utility_prob, provenance}`) held in a brute-force numpy vector store
+(sufficient at MemoryLifeBench's ~10K-memory scale), with a forgetting
+policy (Lifetime-head TTL expiry + Action-head "forget" predictions),
+compaction (merges near-duplicate memories), reflection (utility decay
+past predicted TTL), an append-only audit log, and a retriever that
+reranks similarity-matched candidates by importance and utility before a
+grounded-QA LLM call. `scripts/run_inference_demo.py` runs this
+end-to-end on a real conversation.
+
+## 5. Experiments Part 1: Lifetime Prediction Quality
+
+### 5.1 Setup and baselines
+
+Five baselines, all evaluated on the same test split (N=916) and val
+split (N=939): a recency-frequency heuristic, a day/week/permanent
+bucket classifier, and three LLM-prompted-TTL baselines (locally hosted
+Qwen2.5-7B-Instruct; GPT-4o and Gemini 2.5 Pro via the OpenRouter API,
+zero-shot prompted for a TTL estimate). Real API spend for the two
+frontier baselines: 258,785 tokens (GPT-4o) and 210,072 tokens (Gemini),
+metered and billed (`results/tables/full_comparison_weeks3to5.md`). Our
+own pipeline has **zero** token cost by construction -- no component
+performs autoregressive generation; "tokens" is not a metric that applies
+to a single forward pass through an MLP or a frozen classifier, not merely
+a small number.
+
+### 5.2 Headline results
+
+| Split | Method | C-index |
+|---|---|---|
+| test | **Our survival model** | **0.7218** |
+| test | Day/week/permanent classifier | 0.6298 |
+| test | LLM-prompted TTL (GPT-4o) | 0.5411 |
+| test | LLM-prompted TTL (Qwen2.5-7B) | 0.5207 |
+| test | LLM-prompted TTL (Gemini 2.5 Pro) | 0.4806 |
+| test | Recency-frequency heuristic | 0.4753 |
+
+(`results/tables/week3_results_table.md`; val split shows the same
+ranking, our model 0.7134.) Every "our model" row beats every baseline
+row with p<0.001 (one-sided bootstrap, 1,000 resamples,
+`results/tables/week4_significance.md`) -- e.g. against GPT-4o on test:
++0.1801 C-index, 95% CI [+0.1340, +0.2235].
+
+**Richer metrics** (time-dependent AUC, integrated Brier score) confirm
+the same ranking: our model 0.7895 AUC / 0.2463 IBS (test) vs. GPT-4o's
+0.5339 AUC / 0.4882 IBS
+(`results/tables/week4_richer_metrics.md`). Brier/IBS for the baselines
+uses a degenerate step-function survival curve built from each baseline's
+scalar point estimate -- a legitimate way to score a point forecast under
+a proper scoring rule, but not evidence those baselines produce a
+calibrated probability curve the way our fitted Cox model does; we flag
+this rather than letting the IBS numbers imply more than they show.
+
+**Determinism.** Paraphrase-consistency testing (100 records x 3
+paraphrases) shows our model has zero coefficient of variation (fully
+deterministic given fixed weights) while the LLM baselines vary
+substantially on semantically identical inputs -- GPT-4o mean CV 0.3845
+(44% of records with CV>0.5), Qwen2.5-7B mean CV 0.7456 (85%)
+(`results/tables/week4_consistency.md`). This is a second, orthogonal
+argument for the approach beyond raw ranking accuracy: a deployed
+forgetting policy that changes its mind on a reworded version of the same
+fact is a liability regardless of its average accuracy.
+
+### 5.3 Stability, ablations, and the joint model
+
+**5-seed stability** (seeds 13, 42, 1337, 2024, 7): 0.7312 ± 0.0131 test
+C-index, 0.7237 ± 0.0063 val -- low variance, not a lucky single-seed draw
+(`results/tables/week4_multiseed_results.md`).
+
+**Encoder ablation**: swapping BGE-base (768d) for BGE-large (1024d)
+gives 0.7382 ± 0.0048 vs. 0.7312 ± 0.0131 test -- a small, within-noise
+difference, not a strong argument for the larger encoder at this dataset
+size (`results/tables/week4_ablation_encoder.md`).
+
+**Joint model** (concat fusion, 3 seeds): 0.7553 ± 0.0045 test C-index, a
+real, non-overlapping-error-bar improvement over the single-task head's
+0.7312 ± 0.0131, achieved with a *tighter* seed spread. Concat
+consistently beat gated fusion (0.7304 ± 0.0082) despite gated being the
+more parameter-rich mechanism -- a "simpler was better" result we do not
+over-explain, noting only that gated may be more prone to overfitting at
+this dataset's ~8.3K train-record scale
+(`results/tables/week5_joint_model_results.md`).
+
+**Action head**: 86.4% aggregate test accuracy, but per-class detail
+(consistent across all 6 checkpoints -- 2 fusion variants x 3 seeds) shows
+this hides a real pattern: precision 0.46-0.69 on the minority
+update/merge/forget classes, recall exactly 1.000 on all three. The
+inverse-frequency class weighting used in training means the model never
+*misses* a true update/merge/forget case, at the cost of over-flagging
+some "store" records -- a defensible operating point for a memory system
+(a missed forget is worse than an extra review flag), but the aggregate
+86% number alone overstates how clean the per-class behavior is
+(`results/tables/full_comparison_weeks3to5.md`). This precision gap on
+the `forget` class becomes directly relevant to the downstream failure
+diagnosed in Section 6.3.
+
+**Future-Utility head**: AUC 0.71-0.77 across all 6 checkpoints -- genuinely
+predictive, well above the 0.5 random baseline, but noisier than the
+other two heads, consistent with a harder and more coarsely labeled binary
+target (`results/tables/week5_action_utility_detail.json`).
+
+## 6. Experiments Part 2: Does It Help Downstream QA?
+
+Section 5 validates ranking quality on the model's own metrics. This
+section asks the harder question: does the resulting forgetting policy
+actually preserve downstream question-answering quality, at a storage
+budget matched against naive alternatives?
+
+### 6.1 Setup
+
+Three forgetting policies are compared at the same final storage budget
+per conversation: `no_forget` (retain everything, an accuracy ceiling),
+`fifo` (keep the N most-recently-created memories), `lru` (keep the N
+most-recently-referenced, using a real causal recency signal derived from
+`features/causal.py`'s nearest-prior-in-conversation computation, not a
+live query stream), and `ours` (our original policy: Lifetime-head TTL
+expiry + Action-head "forget"). `fifo`/`lru`'s capacity N is set to
+`ours`'s own natural final active count per conversation, so this is an
+apples-to-apples storage-budget comparison, not an arbitrary fixed
+budget. Evaluated on real LoCoMo and LongMemEval questions, answered by
+GPT-4o over the retrieved memory store, scored by exact match (EM) and
+token-F1. LoCoMo's category-5 "adversarial" QA pairs (no `answer` field,
+only a `adversarial_answer` decoy) are excluded, since scoring against
+the decoy would reward hallucination.
+
+### 6.2 Surprise negative result
+
+| Benchmark | Policy | Mean EM | Mean F1 | N |
+|---|---|---|---|---|
+| locomo | no_forget | 0.1706 | 0.3007 | 1,542 |
+| locomo | fifo | 0.1316 | 0.2347 | 1,542 |
+| locomo | lru | 0.1245 | 0.2319 | 1,542 |
+| locomo | **ours** | **0.1102** | **0.2054** | 1,542 |
+
+(`results/tables/week6_downstream_qa.md`; LongMemEval shows the same
+ordering at smaller magnitude.) `ours` was the *worst* policy tested,
+below both naive baselines and well below the no-forgetting ceiling --
+the opposite of what Section 5's C-index results would predict.
+
+### 6.3 Root-cause diagnosis
+
+We built a free (no LLM calls) evidence-retention diagnostic
+(`scripts/diagnose_eviction_evidence.py`): for every QA pair whose gold
+evidence memory was actually extracted, check by pure set membership
+whether that memory survives each policy's eviction, isolating policy
+quality from LLM-answering noise entirely.
+
+| Policy | Evidence retention rate (LoCoMo, N=1,304 covered QA pairs) |
+|---|---|
+| no_forget | 1.0000 |
+| lru | 0.7676 |
+| fifo | 0.7247 |
+| **ours** | **0.6687** |
+
+(`results/tables/week6_evidence_retention.md`) Two independent causes,
+diagnosed directly rather than assumed:
+
+1. **Miscalibrated absolute threshold.** `predicted_ttl_days` was defined
+   as the survival curve's *median* (`S(t)=0.5`) -- a coin-flip cutoff by
+   construction: by definition of median, roughly half of correctly
+   ranked records are still "alive" past it. C-index is rank-only and
+   scale-invariant, so it never validated this specific absolute cutoff
+   choice. For evicted evidence memories, mean `predicted_ttl_days` was
+   114.4 days against a mean actual-age-needed of 164.1 days -- a 49.7-day
+   mean shortfall (`results/tables/week6_evidence_retention.md`).
+2. **Decision structure.** 100% of `ours`'s evicted-evidence-memory losses
+   were attributable to TTL expiry, 0% to the Action head's "forget"
+   prediction. `ours` makes an *independent per-memory threshold* decision
+   where `fifo`/`lru` always keep their best-N by a *ranked* score -- a
+   threshold can waste capacity on a mediocre item whose score happens to
+   land on the "keep" side while a genuinely important one with noisier
+   scoring falls just short.
+
+### 6.4 Fix #1: quantile cutoff
+
+Making the TTL cutoff a configurable quantile (`quantile_ttl_days`,
+`--ttl-quantile`) instead of the hardcoded median lets us trade storage
+for retention. A free sweep confirms the fix direction:
+
+| Q (S(t) cutoff) | `ours` storage kept | `ours` evidence retention |
+|---|---|---|
+| 0.5 (original) | 70.9% | 0.6687 |
+| 0.2 | 91.3% | 0.9080 |
+| 0.1 | 95.2% | 0.9502 |
+| 0.05 | 97.1% | 0.9716 |
+
+(`results/tables/week6_ttl_quantile_sweep.md`) But this does **not** fully
+close the gap against `fifo`/`lru` at matched capacity at any quantile
+tested -- `lru` retains evidence at least as well as `ours` at every
+single row (e.g. Q=0.2: `ours` 0.9080 vs. `lru` 0.9517) -- confirming
+cause (1) is real but leaving cause (2), the decision structure, as a
+residual gap.
+
+### 6.5 Fix #2: ranked utility eviction
+
+`ours_utility`: rank all memories by the already-trained Future-Utility
+head's `utility_prob` (a signal previously used only to rerank retrieval
+results, never consulted by eviction), keep the top-N matching `ours`'s
+own capacity -- the same ranked-top-N *structure* `fifo`/`lru` use,
+substituting a trained score for a heuristic one. On the same free
+diagnostic:
+
+| TTL quantile | fifo | lru | ours | ours_utility |
+|---|---|---|---|---|
+| 0.5 (original) | 0.7247 | 0.7676 | 0.6687 | **0.8765** |
+| 0.2 | 0.9225 | 0.9517 | 0.9080 | **0.9663** |
+| 0.1 | 0.9670 | 0.9709 | 0.9502 | **0.9877** |
+
+(`results/tables/week6_ranked_eviction_sweep.md`) `ours_utility` beats
+every baseline at every quantile tested, including at the original
+unfixed Q=0.5 -- structure alone recovers most of the gap. A blended
+variant (`ours_combo`, 50/50 utility + continuous TTL signal) is a real
+improvement over `ours` but consistently underperforms pure
+`ours_utility` -- the utility signal is doing essentially all of the
+work; blending dilutes rather than helps, echoing Section 5.3's "simpler
+was better" finding for fusion.
+
+### 6.6 Confirmation on real EM/F1, with significance testing
+
+The free diagnostic is a proxy; we confirmed Fix #2 on a matched
+sample (n=120 LoCoMo questions, n=25 LongMemEval questions) of real
+GPT-4o-scored EM/F1, with paired bootstrap significance testing (10,000
+resamples, same-question resampling) rather than reporting raw means:
+
+| Comparison | N | EM diff, 95% CI | p (a beats b) |
+|---|---|---|---|
+| ours_utility vs. fifo | 120 | +0.0499 [+0.0167, +0.0917] | 0.002 |
+| ours_utility vs. ours | 120 | +0.0415 [+0.0083, +0.0833] | 0.006 |
+| ours_utility vs. no_forget | 120 | +0.0000 [+0.0000, +0.0000] | 1.000 |
+| **ours_utility vs. lru** | 120 | +0.0083 [+0.0000, +0.0250] | **0.367** |
+
+(`results/tables/week6_downstream_significance.md`) `ours_utility`
+**significantly beats `fifo` and the original `ours` policy** (p<0.01
+both metrics) and is **statistically indistinguishable from the
+`no_forget` ceiling** (EM difference exactly 0 across all 10,000
+resamples). It is **not significantly different from `lru`** at this
+sample size (p=0.367 EM, p=0.648 F1) -- the free-diagnostic sweep in 6.5
+shows a large, consistent advantage over `lru` at every quantile, but we
+report the honest limit of what n=120 real LLM-scored questions can
+establish rather than the stronger claim the proxy metric alone would
+suggest. A larger paid confirmation run is the natural next step and is
+explicitly out of scope for this draft's budget.
+
+### 6.7 Why does the fix work? A mechanistic explanation
+
+Beyond the outcome, we measured whether the two candidate ranking signals
+actually predict ground truth QA-evidence relevance, independent of any
+eviction policy: pooled AUC of `utility_prob` and `predicted_ttl_days`
+against `is_evidence` (was this memory ever cited as evidence for a
+LoCoMo QA pair), across all 2,536 LoCoMo memories.
+
+| Signal | Pooled AUC (predicts is_evidence) |
+|---|---|
+| utility_prob (Future-Utility head) | **0.6709** |
+| predicted_ttl_days (Lifetime head, median quantile) | **0.2852** |
+
+(`results/tables/week6_utility_signal_auc.md`) `utility_prob` is a
+genuinely predictive signal (positive in all 10 conversations
+individually, 0.61-0.76 range). `predicted_ttl_days` is **below 0.5** --
+*inversely* correlated with evidence relevance. This gives a complete
+causal account of Section 6.5's result: Fix #2 works not merely because
+ranking beats thresholding in general, but because it replaces a signal
+that is actively backwards with one that is genuinely predictive.
+
+### 6.8 Does EM/F1 undercount real quality?
+
+LLM-judge rescoring (GPT-4o judges each prediction against the reference,
+independent of exact wording) of the same 725 predictions found 22.1%
+(160/725) were marked wrong by EM but judged substantively correct
+(`results/tables/week6_judge_scores_week6_downstream_qa_raw_q0.2_ranked_pilot.md`).
+Under the judge metric, LoCoMo scores rise 2-4x across every policy (e.g.
+`ours_utility`: EM 0.0917 -> judge 0.3500), and the relative ranking
+shifts further in `ours_utility`'s favor -- it edges out both `lru`
+(0.3417) and the `no_forget` ceiling itself (0.3333). We do not present
+this as a confirmed stronger win: it is a raw mean on the same n=120
+sample and would need the same bootstrap treatment as 6.6 before being
+cited as decisive; we report the direction honestly rather than
+overclaiming its statistical weight.
+
+### 6.9 Qualitative traces
+
+Tracing the same gold-evidence memory across policies surfaced 8 cases
+where eviction under `ours` directly caused a wrong answer that
+`ours_utility` (having kept the memory) answered correctly. One
+representative example (`results/tables/week6_qualitative_examples.md`):
+for the question "When did Jon lose his job as a banker?" (reference: "19
+January, 2023"), the evidence memory "Jon lost his job as a banker the
+day before the conversation" was evicted under `ours`, and the model
+answered "I don't have that information yet" -- not a bad guess, direct
+proof the memory was genuinely gone. With the same memory retained under
+`ours_utility`, the model answered "2023-01-19" correctly. We also flag,
+rather than quietly omit, one EM-vs-judge disagreement that looks like a
+plausible *judge* error (reference "three years" judged equivalent to
+prediction "2019" -- only correct if the judge silently infers a
+conversation date it was never shown), since the judge prompt does not
+see memory timestamps.
+
+### 6.10 Does the diagnosis hold on LongMemEval?
+
+An earlier pass in this project incorrectly asserted LongMemEval had no
+evidence-linkage field and excluded it entirely from the diagnostic in
+6.3-6.5; that claim was never tested and turned out to be wrong --
+`evidence_dia_id` matches a `haystack_session_id` for 100% of LongMemEval
+memories, verified directly. We correct this and extend the diagnostic:
+
+| Policy | Evidence retention rate (LongMemEval, N=92 covered questions) |
+|---|---|
+| no_forget / fifo / lru | 1.0000 |
+| ours | 0.9783 |
+| ours_utility | 0.9891 |
+
+(`results/tables/week6_evidence_retention_longmemeval.md`) `no_forget`,
+`fifo`, and `lru` all achieve *perfect* retention here, precisely
+explaining (not just hand-waving) why LongMemEval showed little
+downstream QA effect in 6.2: its small conversations rarely fill the
+storage budget, so naive policies almost never need to evict evidence in
+the first place. `ours` still measurably underperforms via the same
+TTL-only mechanism seen on LoCoMo (0 Action-head evictions), and
+`ours_utility` still helps -- the same causal story, present but of
+smaller magnitude on a benchmark where the failure mode has less room to
+manifest.
+
+## 7. Limitations
+
+We state these directly rather than deferring them to an appendix:
+
+- **Censoring convention for real-conversation records** (Section 3.3,
+  case 3) is a judgment call with no ground-truth alternative in the
+  source data -- a sensitivity analysis under a different censoring-time
+  choice is a natural follow-up, not yet done.
+- **The `ours_utility` vs. `lru` comparison is not statistically
+  significant** at n=120 real LLM-scored questions (Section 6.6), even
+  though the free-diagnostic proxy and the mechanistic AUC analysis both
+  point the same direction. We do not resolve this tension by running a
+  larger sample within this draft's scope.
+- **The Importance head is a heuristic, not learned** -- no ground-truth
+  importance label exists in the dataset schema.
+- **The residual gap between `ours` and `lru`/`fifo` at every TTL
+  quantile** (Section 6.4) has a working hypothesis (LoCoMo's QA evidence
+  may itself be recency-skewed, mechanically favoring recency-based
+  selection) that is not yet verified.
+- **The original dialogue -> candidate-memory extraction pipeline** that
+  produced `data/raw/*.jsonl` is not in this repository; MemoryLifeBench
+  ships the already-extracted records, not the extraction code.
+- **No human validation** of extracted labels has been performed; all
+  labels are programmatically derived.
+- **LLM-judge scoring** (Section 6.8) is itself imperfect -- see the
+  flagged judge-error example in 6.9 -- and its results are not yet
+  subjected to the same significance testing as the EM/F1 headline claims.
+
+## 8. Reproducibility
+
+Full environment, seeds, and runtime details: `docs/reproducibility.md`.
+Headline results use 5 seeds (survival model) or 3 seeds (joint model);
+all reported means include standard deviation. 46 unit tests (26 added in
+Week 6) cover the pure-logic components behind every downstream claim in
+Section 6 -- bootstrap significance arithmetic, the TTL-quantile cutoff
+behavior, all six eviction policies, and the evidence-retention report's
+table arithmetic (`tests/`). Code: MIT license. Data: CC BY-NC 4.0
+(non-commercial, attribution to LoCoMo and LongMemEval required -- see
+`LICENSE-DATA`).
+
+## 9. Conclusion
+
+Framing memory-lifetime prediction as survival analysis, rather than a
+heuristic importance score, gives a small, deterministic, zero-token-cost
+model that ranks memory lifetimes substantially better than prompting
+frontier LLMs. But we show this ranking quality does not automatically
+translate into a good deployed forgetting policy: a real downstream QA
+evaluation caught a failure our own validated metric (C-index) could not
+have caught, because C-index is rank-only and never validates an absolute
+decision threshold. The fix that worked was not a better model, but a
+better *use* of a model we already had -- ranked selection instead of
+independent thresholding, using a signal (Future-Utility) that was
+already trained but, before this work, was never consulted by the
+forgetting policy itself. We see this as the paper's most transferable
+finding for anyone building a memory system on top of a lifetime/utility
+model: validate the actual deployed decision rule against a task-level
+metric, not only the ranking metric the model was trained against.
+
+## References
+
+- Maharana, A., Lee, D.-H., Tulyakov, S., Bansal, M., Barbieri, F., Fang,
+  Y. (2024). Evaluating Very Long-Term Conversational Memory of LLM
+  Agents. arXiv:2402.17753.
+- Wu, D., Wang, H., Yu, W., Zhang, Y., Chang, K.-W., Yu, D. (2024).
+  LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive
+  Memory. arXiv:2410.10813.
+- Park, J. S., et al. (2023). Generative Agents: Interactive Simulacra of
+  Human Behavior.
+- Packer, C., et al. (2023). MemGPT: Towards LLMs as Operating Systems.
+
+---
+
+*Draft notes for the author, not part of the paper text: every numeric
+claim above traces to a specific file under `results/tables/`; if a
+number here and its source table ever disagree, the table is correct and
+this draft needs a fix, not the other way around. Sections 6.6/6.8 are
+deliberately written to preserve the non-significant/not-yet-tested
+results rather than smoothing them out -- keep that framing in any future
+edit pass.*
