@@ -308,6 +308,38 @@ recovers most but not all of it (0.9891). So the median-cutoff/ranking
 problems are real and present on LongMemEval too, just rarely large
 enough in this benchmark's small conversations to move real EM/F1.
 
+**Test coverage for the Week-6 code** (reviewer gap): none of the new
+scripts/functions above had a test until now -- every number in this
+section was trusted from a single manual run. Added 26 tests across 5
+files (`tests/test_downstream_significance.py`, `test_ttl_quantile.py`,
+`test_eviction_policies.py`, `test_diagnose_eviction_evidence.py`,
+`test_judge_downstream_qa.py`) directly exercising the pure-logic pieces
+behind every claim above: `bootstrap_paired_mean_diff`'s CI/p-value
+arithmetic, `quantile_ttl_days`'s cutoff behavior (including that a lower
+quantile really does push the cutoff later, and the MAX_SURVIVAL_TTL_DAYS
+fallback), all six `final_active_ids` eviction policies plus
+`remaining_life_fraction`, `diagnose_eviction_evidence.py`'s
+`format_report` table arithmetic (retention rate, eviction-mechanism
+percentages, TTL-calibration shortfall), and `judge_downstream_qa.py`'s
+cache-key hashing (a silent collision there would mean re-billing or,
+worse, silently returning another question's cached verdict). Writing
+`test_ttl_quantile.py` caught a mistake in the test itself (a hand-computed
+expected cutoff off by one time-step) before it ever ran -- the VM run
+below is what actually confirms correctness, not the hand math. All 26
+pass on the VM (`PYTHONPATH=src python -m pytest tests/ -q`), alongside
+the pre-existing 20 Week-3/4/5 tests (46 total). `qualitative_examples.py`
+and `analyze_utility_signal.py` are left untested: both are thin glue over
+already-tested primitives (`build_memory_objects`, `final_active_ids`,
+sklearn's `roc_auc_score`) with no standalone pure logic worth isolating.
+
+Housekeeping gap noticed while doing this, not yet fixed: `tests/test_audit_log.py`,
+`test_features.py`, `test_memory_store.py`, `test_pipeline_smoke.py`, and
+`test_schema.py` are pre-existing empty stub files (0 bytes, predate Week 6),
+and `.github/workflows/ci.yml`/`reproduce-smoke.yml`/`Makefile` are likewise
+empty -- there is currently no CI actually running any of these 46 tests on
+push. Flagging honestly rather than letting "we have tests" imply "tests run
+automatically."
+
 ## Repo map
 
 ```
