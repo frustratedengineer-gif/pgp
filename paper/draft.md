@@ -218,7 +218,7 @@ Five baselines, all evaluated on the same test split (N=916) and val
 split (N=939): a recency-frequency heuristic, a day/week/permanent
 bucket classifier, and three LLM-prompted-TTL baselines (locally hosted
 Qwen2.5-7B-Instruct; GPT-4o and Gemini 2.5 Pro via the OpenRouter API,
-zero-shot prompted for a TTL estimate). Real API spend for the two
+zero-shot prompted for a TTL estimate; exact prompt: Appendix C.1). Real API spend for the two
 frontier baselines: 258,785 tokens (GPT-4o) and 210,072 tokens (Gemini),
 metered and billed (`results/tables/full_comparison_weeks3to5.md`). Our
 own pipeline has **zero** token cost by construction -- no component
@@ -322,8 +322,8 @@ apples-to-apples storage-budget comparison, not an arbitrary fixed
 budget. Formal definitions of all six policies (`no_forget`, `fifo`,
 `lru`, `ours`, `ours_utility`, `ours_combo`): Appendix A.2. Evaluated on
 real LoCoMo and LongMemEval questions, answered by GPT-4o over the
-retrieved memory store, scored by exact match (EM) and
-token-F1. LoCoMo's category-5 "adversarial" QA pairs (no `answer` field,
+retrieved memory store (exact prompt: Appendix C.2), scored by exact
+match (EM) and token-F1. LoCoMo's category-5 "adversarial" QA pairs (no `answer` field,
 only a `adversarial_answer` decoy) are excluded, since scoring against
 the decoy would reward hallucination.
 
@@ -487,7 +487,7 @@ that is actively backwards with one that is genuinely predictive.
 ### 6.8 Does EM/F1 undercount real quality?
 
 LLM-judge rescoring (GPT-4o judges each prediction against the reference,
-independent of exact wording) of the same 725 predictions found 22.1%
+independent of exact wording; exact prompt: Appendix C.3) of the same 725 predictions found 22.1%
 (160/725) were marked wrong by EM but judged substantively correct
 (`results/tables/week6_judge_scores_week6_downstream_qa_raw_q0.2_ranked_pilot.md`).
 Under the judge metric, LoCoMo scores rise 2-4x across every policy (e.g.
@@ -856,6 +856,80 @@ reviewer after the fact. We disclose this directly, rather than using
 REMem's minimal framing, because the actual degree of AI involvement
 here is materially higher and a reader assessing this work's provenance
 should know that plainly.
+
+## Appendix C: Prompts
+
+Reviewer gap (comparing against REMem, ICLR 2026, Appendix D): prompts
+were referenced only by file path elsewhere in this paper. Reproduced
+here verbatim from the repository (`src/memorylife/inference/prompts/*.txt`,
+`baselines/_openrouter_client.py`), not paraphrased.
+
+### C.1 TTL-prediction baseline prompt (Section 5.1)
+
+Used identically for all three LLM-prompted-TTL baselines (GPT-4o,
+Gemini 2.5 Pro, local Qwen2.5-7B) -- the same prompt on purpose, so
+"which model" is the only variable being compared.
+
+```
+You are estimating how long a piece of memory stays useful for a personal AI assistant.
+
+Memory statement: "{text}"
+
+Question: starting from when this was said, how many days from now is this fact likely to remain true and useful to remember, before it becomes outdated or irrelevant? Some facts are permanent (use a large number like 3650 for "essentially forever"), some last weeks or months, and some are only relevant for a day or two.
+
+Answer with ONLY a single integer number of days. No words, no explanation.
+```
+
+### C.2 Grounded-QA prompt (Section 6, all downstream policy comparisons)
+
+The only prompt that answers a question against retrieved memories --
+every EM/F1/BLEU-1/judge/refusal number in Section 6 traces back to a
+call using this template.
+
+```
+You are a personal AI assistant answering a question using only memories retrieved from what the user has told you before. Each memory is dated. For "when" questions, do the arithmetic: if a memory dated 2023-05-08 says something happened "yesterday", the answer is 2023-05-07, not "recently" or "yesterday" -- always convert relative time words (yesterday, last year, last week, etc.) into an absolute date/year using the memory's date, and give that absolute answer.
+
+Retrieved memories (most relevant first, each dated, each with how confident the system is that it's still true/relevant):
+{retrieved_memories_block}
+
+User's question: "{query}"
+
+Answer using ONLY the retrieved memories above. If none of them actually answer the question, say you don't have that information yet -- do not guess or use outside knowledge. Give the SHORTEST correct answer: a bare date, name, number, or short phrase if that's all the question asks for -- not a full sentence restating the question. Only use a full sentence if the question genuinely requires one.
+```
+
+Note the explicit refusal instruction ("say you don't have that
+information yet") -- this is the exact phrase `is_refusal` (Appendix A,
+Section 6.11) was calibrated to detect.
+
+### C.3 LLM-judge prompt (Section 6.8)
+
+```
+You are grading whether a candidate answer to a question is substantively correct, given a known reference answer. Judge by MEANING, not exact wording -- paraphrases, different units/formats for the same fact, and answers that include the correct fact plus extra correct context all count as correct. A vague, wrong, contradictory, or "I don't know" answer when the reference has a real answer counts as incorrect.
+
+Question: "{question}"
+Reference answer: "{reference}"
+Candidate answer: "{prediction}"
+
+Respond with exactly one word: CORRECT or INCORRECT. No explanation.
+```
+
+### C.4 Memory-extraction prompt (documented, not exercised by this paper's results)
+
+Exists for a future live-deployment path (raw dialogue turns -> extracted
+memory statements) -- MemoryLifeBench's own records are already
+extracted, pre-labeled statements (Section 3), so this prompt is not
+called anywhere in producing any number reported in this paper. Included
+for completeness, not because it was used.
+
+```
+You extract durable, memory-worthy statements from a single conversational turn, for a personal AI assistant's long-term memory store.
+
+Conversation turn (speaker: {speaker}): "{turn_text}"
+
+If this turn states a fact, preference, plan, or event worth remembering for future conversations, output it as a short, self-contained third-person statement (e.g. "User lives in Denver.", "User has a flight on March 3rd."). If it's small talk, a question with no lasting content, or nothing worth remembering, output exactly: NONE
+
+Output ONLY the extracted statement (or NONE). No explanation.
+```
 
 ---
 

@@ -434,6 +434,13 @@ and preserves the same policy ranking already established elsewhere
 (`ours_utility` ~ `no_forget` > `lru` > `ours` > `fifo`) -- a confirmatory
 result, not a new finding, but it closes a real gap in the metric suite.
 
+**Prompts appendix** (reviewer gap): `paper/draft.md`'s new Appendix C
+reproduces all four prompts used anywhere in this project verbatim, not
+just by file path -- the TTL-baseline prompt, the grounded-QA prompt
+(the one every Section-6 downstream number traces back to), the
+LLM-judge prompt, and the documented-but-unexercised memory-extraction
+prompt, clearly labeled as not exercised by any reported result.
+
 **Test coverage for the Week-6 code** (reviewer gap): none of the new
 scripts/functions above had a test until now -- every number in this
 section was trusted from a single manual run. Added 26 tests across 5
