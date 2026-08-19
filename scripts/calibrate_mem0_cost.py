@@ -94,6 +94,25 @@ def main():
     print(f"Remaining balance: ${balance_end:.4f}")
     print(f"\nExtrapolated cost for all 5,882 LoCoMo turns (10 conversations): ${rate * 5882:.2f}")
 
+    md = (
+        "# Mem0 indexing cost calibration (GPT-4o via OpenRouter)\n\n"
+        f"Real run: `{args.conversation}`, capped at the first {args.max_turns} turns (a calibration "
+        "run, not the full eval), Mem0's `openai` LLM provider auto-routed through OpenRouter to "
+        "GPT-4o.\n\n"
+        "| Metric | Value |\n|---|---|\n"
+        f"| Turns indexed | {n_turns} |\n"
+        f"| Starting balance | ${balance_start:.4f} |\n"
+        f"| Ending balance | ${balance_end:.4f} |\n"
+        f"| Spent | ${spent:.4f} |\n"
+        f"| $/turn | ${rate:.5f} |\n"
+        f"| Wall-clock | {elapsed:.1f}s ({elapsed/max(n_turns,1):.2f}s/turn) |\n"
+        f"| Extrapolated cost for all 5,882 LoCoMo turns (10 conversations) | ${rate * 5882:.2f} |\n"
+    )
+    out_path = Path("results/tables/week6_mem0_cost_calibration.md")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(md, encoding="utf-8")
+    print(f"\nwritten -> {out_path}")
+
 
 if __name__ == "__main__":
     main()

@@ -334,8 +334,9 @@ this dataset's ~8.3K train-record scale
 
 **Action head**: 86.4% aggregate test accuracy, but per-class detail
 (consistent across all 6 checkpoints -- 2 fusion variants x 3 seeds) shows
-this hides a real pattern: precision 0.46-0.69 on the minority
-update/merge/forget classes, recall exactly 1.000 on all three. The
+this hides a real pattern: precision 0.41-0.69 on the minority
+update/merge/forget classes, recall exactly 1.000 on all three across
+all 6 checkpoints. The
 inverse-frequency class weighting used in training means the model never
 *misses* a true update/merge/forget case, at the cost of over-flagging
 some "store" records -- a defensible operating point for a memory system
@@ -542,8 +543,9 @@ LLM-judge rescoring (GPT-4o judges each prediction against the reference,
 independent of exact wording; exact prompt: Appendix C.3) of the same 725 predictions found 22.1%
 (160/725) were marked wrong by EM but judged substantively correct
 (`results/tables/week6_judge_scores_week6_downstream_qa_raw_q0.2_ranked_pilot.md`).
-Under the judge metric, LoCoMo scores rise 2-4x across every policy (e.g.
-`ours_utility`: EM 0.0917 -> judge 0.3500), and the relative ranking
+Under the judge metric, LoCoMo scores rise approximately 3.6-4.4x across
+every policy (e.g. `ours_utility`: EM 0.0917 -> judge 0.3500, a 3.8x
+rise), and the relative ranking
 shifts further in `ours_utility`'s favor -- it edges out both `lru`
 (0.3417) and the `no_forget` ceiling itself (0.3333). We do not present
 this as a confirmed stronger win: it is a raw mean on the same n=120
@@ -732,10 +734,16 @@ explanation that small stores (~7 memories) leave little room for
 retrieval noise to matter there, the same structural reason naive
 policies already achieve near-perfect evidence retention on that
 benchmark. `full_context` lands between `oracle` and `no_forget` on
-LoCoMo, suggesting removing the top-5 cap recovers some but not all of
-the gap -- but this specific three-way comparison is underpowered at the
-sample sizes run here (N=22 in the matched oracle/full_context/no_forget
-subset) and we report it as suggestive, not confirmed.
+LoCoMo (`results/tables/week6_oracle_fullcontext_threeway.md`, N=22
+matched on all three policies: EM 0.136 vs. oracle's 0.227 and
+no_forget's 0.182; F1 0.350 vs. 0.456 and 0.297), suggesting removing the
+top-5 cap recovers some but not all of the gap -- but `full_context` vs.
+`no_forget` is the only pairwise comparison in this specific three-way
+subset that clears significance (F1 p=0.041; oracle vs. full_context and
+oracle vs. no_forget-on-this-subset do not, p=0.061 and p=0.38
+respectively, smaller than the N=107 headline comparison above because
+this restricts to the much smaller three-way-matched set), so we report
+it as suggestive, not confirmed.
 
 This result does not change any of Sections 6.4-6.7's conclusions about
 which eviction policy is best -- it changes what "best" is measured
@@ -758,16 +766,22 @@ systems -- Mem0, Graphiti, HippoRAG 2 -- by name. We integrate Mem0
 used throughout Section 6.
 
 **Getting there was not free, and we disclose the detour in full rather
-than hiding it.** A cost calibration (`scripts/calibrate_mem0_cost.py`)
-measured Mem0's own indexing calls -- one LLM call per conversation
-TURN, not per question -- at $0.0106/turn on GPT-4o via OpenRouter:
-approximately $62 to index all 5,882 turns, far beyond this project's
-remaining budget. Mem0's own built-in `vllm` LLM provider was pointed
-instead at a hand-rolled local OpenAI-compatible server
-(`scripts/local_llm_server.py`) serving the same local Qwen2.5-7B-
-Instruct model this project already used as a baseline in Section 5.1 --
-zero marginal cost. Measured indexing time: approximately 11 hours
-across all 10 conversations.
+than hiding it.** A cost calibration (`scripts/calibrate_mem0_cost.py`,
+`results/tables/week6_mem0_cost_calibration.md`) measured Mem0's own
+indexing calls -- one LLM call per conversation TURN, not per question --
+at $0.01063/turn on GPT-4o via OpenRouter (60 real turns, measured from
+actual before/after account balance): $62.55 extrapolated to index all
+5,882 turns, far beyond this project's remaining budget. Mem0's own
+built-in `vllm` LLM provider was pointed instead at a hand-rolled local
+OpenAI-compatible server (`scripts/local_llm_server.py`) serving the same
+local Qwen2.5-7B-Instruct model this project already used as a baseline
+in Section 5.1 -- zero marginal cost. Indexing throughput on the local
+model varied substantially by shared-GPU-node load, from ~4.4s/turn in
+steady state (`conv-30`, 369 turns, 27.3 minutes) to over 30s/turn during
+a period of severe node contention late in the run (`conv-50`); total
+wall-clock across all 10 conversations was on the order of several hours,
+not tracked as a single precise committed figure the way the dollar cost
+above is.
 
 This substitution introduces two real, measured limitations, not
 speculative ones: (1) Mem0's open-source `add()` has no working
@@ -855,8 +869,9 @@ We state these directly rather than deferring them to an appendix:
 
 Full environment, seeds, and runtime details: `docs/reproducibility.md`.
 Headline results use 5 seeds (survival model) or 3 seeds (joint model);
-all reported means include standard deviation. 46 unit tests (26 added in
-Week 6) cover the pure-logic components behind every downstream claim in
+all reported means include standard deviation. 51 unit tests (31 added in
+Week 6, including 5 that landed in the pre-existing `test_qa_metrics.py`)
+cover the pure-logic components behind every downstream claim in
 Section 6 -- bootstrap significance arithmetic, the TTL-quantile cutoff
 behavior, all six eviction policies, and the evidence-retention report's
 table arithmetic (`tests/`). Code: MIT license. Data: CC BY-NC 4.0
@@ -879,7 +894,14 @@ already trained but, before this work, was never consulted by the
 forgetting policy itself. We see this as the paper's most transferable
 finding for anyone building a memory system on top of a lifetime/utility
 model: validate the actual deployed decision rule against a task-level
-metric, not only the ranking metric the model was trained against.
+metric, not only the ranking metric the model was trained against. Two
+further checks kept this conclusion honest rather than self-serving: an
+Oracle comparison showed the eviction-policy fixes close the gap between
+policies, not the larger and separate gap to what better retrieval could
+achieve; and a real comparison against an independent memory system
+(Mem0) found our best policy statistically tied with it, not superior --
+reported as measured, because a paper that only checks claims favorable
+to its own contribution has not really checked them.
 
 ## References
 

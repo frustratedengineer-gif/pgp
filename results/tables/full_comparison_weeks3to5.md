@@ -107,8 +107,10 @@ full detail across all 6 checkpoints in `week5_action_utility_detail.json`):
 | merge | 0.457 | 1.000 | 0.627 | 48 |
 | forget | 0.635 | 1.000 | 0.776 | 33 |
 
-**This pattern (precision 0.46-0.69, recall exactly 1.000) holds across
-every single one of the 6 checkpoints (2 fusion variants x 3 seeds)** --
+**This pattern (precision 0.41-0.69 across all 6 checkpoints -- the
+single-checkpoint table above shows 0.46-0.64 for its own 3 rows --
+recall exactly 1.000) holds across every single one of the 6 checkpoints
+(2 fusion variants x 3 seeds)** --
 consistent enough that it's a real property of training under aggressive
 inverse-frequency class weighting (`losses/action_loss.py`), not
 seed-specific noise. The model never MISSES a true update/merge/forget

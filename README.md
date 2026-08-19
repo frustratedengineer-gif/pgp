@@ -193,10 +193,14 @@ retention climbs monotonically as the cutoff moves later (Q=0.5: 66.9% ->
 Q=0.2: 90.8% -> Q=0.1: 95.0%), though it doesn't fully close the gap to
 `fifo`/`lru` at any quantile tested. Confirmed on real EM/F1 with a
 matched, same-145-question controlled comparison (`results/tables/week6_downstream_qa_q0.5_pilot_control.md`
-vs. `..._q0.2_pilot.md` vs. `..._q0.1_pilot.md`): `ours` improved more than
-`fifo` or `lru` did across the same quantile sweep, closing 61% of its
-gap to the `no_forget` ceiling on LoCoMo F1 by Q=0.1, with no reversal yet
-observed. LongMemEval showed no effect either way on real EM/F1 -- at the
+vs. `..._q0.2_pilot.md` vs. `..._q0.1_pilot.md`): from Q=0.5 to Q=0.1,
+`ours` improved more than `fifo`/`lru` on EM (+0.025 vs. +0.017/+0.000),
+closing 61% of its gap to the `no_forget` ceiling on LoCoMo F1 by Q=0.1 --
+though on F1 specifically, `fifo` improved slightly more in absolute
+terms than `ours` did (+0.0549 vs. +0.0478; `lru` improved the least,
++0.0201) even as `ours` closes real ground toward the ceiling. Precise
+numbers either way, not rounded up to a cleaner-sounding story. LongMemEval
+showed no effect either way on real EM/F1 -- at the
 time this was attributed to conversations being too small (~7 memories
 each) for a cutoff choice to matter; the free evidence-retention
 diagnostic (see below) later gave the precise reason: `fifo`/`lru` both
@@ -271,7 +275,8 @@ since been added to the script and `qa_metrics.llm_judge_score` for any
 future run). Result: **22.1% of all predictions (160/725) were marked
 wrong by EM but judged substantively correct** -- EM was drastically
 undercounting real quality across every policy. Under the judge metric,
-LoCoMo scores jump 2-4x (e.g. `ours_utility`: EM 0.092 -> judge 0.350),
+LoCoMo scores jump ~3.6-4.4x across policies (e.g. `ours_utility`: EM
+0.092 -> judge 0.350, a 3.8x jump),
 and the *relative ranking* shifts in `ours_utility`'s favor: it edges out
 both `lru` (0.342) and the `no_forget` ceiling itself (0.333) -- a
 stronger result than EM showed, though (like the EM/F1 numbers) this is
@@ -483,15 +488,19 @@ top-5 retrieval over a large, unevicted store is itself a genuine,
 independent bottleneck that no eviction-policy fix in this project (not
 even `ours_utility`) was ever positioned to close. On LongMemEval, this
 gap is NOT significant (p=0.36 both metrics, N=22) -- consistent with
-Section 6.10's explanation that LongMemEval's small stores (~7 memories)
-leave little room for retrieval noise to matter, the same reason naive
+the explanation earlier in this section (`paper/draft.md`'s Section 6.10)
+that LongMemEval's small stores (~7 memories) leave little room for
+retrieval noise to matter, the same reason naive
 policies already achieve near-perfect evidence retention there.
-`full_context` sits between `oracle` and `no_forget` on LoCoMo (removing
-the top-5 cap helps) but does not reach `oracle` -- consistent with a
-large uncapped context itself introducing distractor noise, though this
-specific three-way comparison is underpowered at the sample sizes run
-here (N=22 for the matched oracle/full_context/no_forget subset) and is
-reported as suggestive, not confirmed.
+`full_context` sits between `oracle` and `no_forget` on LoCoMo
+(`results/tables/week6_oracle_fullcontext_threeway.md`, N=22 matched on
+all three: EM 0.136 vs. 0.227/0.182, F1 0.350 vs. 0.456/0.297) --
+removing the top-5 cap helps but doesn't reach `oracle`, consistent with
+a large uncapped context itself introducing distractor noise. Only
+`full_context` vs. `no_forget` clears significance in this specific
+three-way-matched subset (F1 p=0.041); the other two pairs don't
+(p=0.061, p=0.38) at this smaller N, so it's reported as suggestive, not
+confirmed.
 
 **A real memory-system baseline: Mem0** (reviewer gap #1, the one flagged
 "too costly" for most of Week 6 -- see below for how the cost problem
@@ -504,22 +513,28 @@ al., 2025) is now genuinely integrated (`baselines/mem0_wrapper.py`,
 same 120-question sample used everywhere else in Week 6.
 
 *Getting there took a real detour, disclosed in full.* A cost
-calibration (`scripts/calibrate_mem0_cost.py`) measured Mem0's own
+calibration (`scripts/calibrate_mem0_cost.py`,
+`results/tables/week6_mem0_cost_calibration.md`) measured Mem0's own
 indexing calls (one LLM call per conversation TURN, not per question) at
-**$0.0106/turn on GPT-4o via OpenRouter -- ~$62 to index all 5,882 turns**,
-far beyond this project's remaining ~$1 budget (a student stipend, no
-sponsorship, spelled out here because it's the actual reason this gap
-was originally marked "skipped"). The fix: point Mem0's own built-in
-`vllm` LLM provider at a hand-rolled local OpenAI-compatible server
-(`scripts/local_llm_server.py`, stdlib `http.server` only, no new heavy
-dependency) serving the SAME local Qwen2.5-7B-Instruct model this
-project already used as a Week-3 baseline -- zero marginal cost, just
-GPU time on hardware already available. Real measured indexing time:
-**~11 hours across all 10 conversations** (throughput varied 4.4s/turn
-to 30-180s/turn depending on shared-GPU-node load; a severe slowdown on
-the last conversation coincided with a period the VM was briefly
-unreachable over SSH, almost certainly the same underlying resource
-contention, not two separate problems).
+**$0.01063/turn on GPT-4o via OpenRouter -- $62.55 extrapolated to index
+all 5,882 turns** (measured from 60 real turns and actual before/after
+account balance, not estimated), far beyond this project's remaining ~$1
+budget (a student stipend, no sponsorship, spelled out here because it's
+the actual reason this gap was originally marked "skipped"). The fix:
+point Mem0's own built-in `vllm` LLM provider at a hand-rolled local
+OpenAI-compatible server (`scripts/local_llm_server.py`, stdlib
+`http.server` only, no new heavy dependency) serving the SAME local
+Qwen2.5-7B-Instruct model this project already used as a Week-3
+baseline -- zero marginal cost, just GPU time on hardware already
+available. Indexing throughput on the local model varied substantially
+by shared-GPU-node load: ~4.4s/turn in steady state (`conv-30`, 369
+turns, 27.3 measured minutes) degrading to 30s/turn or worse during a
+period of severe node contention late in the run (`conv-50`), which
+coincided with the VM being briefly unreachable over SSH -- almost
+certainly the same underlying resource contention, not two separate
+problems. Total wall-clock across all 10 conversations was on the order
+of several hours; unlike the dollar figure above, no single precise
+total was captured in a committed table, so it is not quoted as one here.
 
 Two real, disclosed limitations of this substitution, not swept under
 the rug: (1) Mem0 OSS's `add()` has no working `timestamp` parameter
@@ -582,10 +597,13 @@ worse, silently returning another question's cached verdict). Writing
 expected cutoff off by one time-step) before it ever ran -- the VM run
 below is what actually confirms correctness, not the hand math. All 26
 pass on the VM (`PYTHONPATH=src python -m pytest tests/ -q`), alongside
-the pre-existing 20 Week-3/4/5 tests (46 total). `qualitative_examples.py`
-and `analyze_utility_signal.py` are left untested: both are thin glue over
-already-tested primitives (`build_memory_objects`, `final_active_ids`,
-sklearn's `roc_auc_score`) with no standalone pure logic worth isolating.
+the pre-existing 20 Week-3/4/5 tests (46 total at the time this was
+written -- later reviewer-gap items added 5 more tests to this same
+`test_qa_metrics.py` file, see the Repo map section below for the
+current total). `qualitative_examples.py` and `analyze_utility_signal.py`
+are left untested: both are thin glue over already-tested primitives
+(`build_memory_objects`, `final_active_ids`, sklearn's `roc_auc_score`)
+with no standalone pure logic worth isolating.
 
 Housekeeping gap noticed while doing this, not yet fixed: `tests/test_audit_log.py`,
 `test_features.py`, `test_memory_store.py`, `test_pipeline_smoke.py`, and
@@ -609,26 +627,36 @@ src/memorylife/  the installable package -- data, encoders, features, fusion, he
                  (fusion/cross_attention.py, memory/store/{faiss,chroma}_store.py,
                  memory/store/sqlite_metadata.py are still stubs)
 baselines/       llm_prompted_ttl.py, chatgpt_prompted_ttl.py, gemini_prompted_ttl.py,
-                 bucket_classifier.py, heuristic_ttl.py, fifo.py, lru.py, no_forget.py
-                 (implemented, see baselines/README.md); mem0/memgpt/
-                 generative_agents_importance/locomo/longmemeval wrappers still stubs
+                 bucket_classifier.py, heuristic_ttl.py, fifo.py, lru.py, no_forget.py,
+                 mem0_wrapper.py (Week-6 real Mem0 baseline integration, see
+                 baselines/README.md); memgpt/generative_agents_importance/
+                 locomo/longmemeval wrappers still stubs
 scripts/         thin CLIs: preprocess.py, train.py, run_baseline.py, evaluate.py,
                  run_seed_sweep.py, compute_significance.py, compute_richer_metrics.py,
                  consistency_check.py, run_ablations.py, train_joint.py,
                  run_inference_demo.py, build_benchmark.py (Week-6 evidence-coverage
                  check), run_downstream_qa_eval.py (Week-6 policy comparison),
                  diagnose_eviction_evidence.py (Week-6 root-cause diagnostic),
-                 run_all.sh, run_smoke.sh
+                 compute_downstream_significance.py, analyze_utility_signal.py,
+                 judge_downstream_qa.py, qualitative_examples.py, eval_refusal.py,
+                 compute_refusal_significance.py, categorize_error_sample.py,
+                 breakdown_by_question_type.py, compute_bleu1.py,
+                 eval_oracle_fullcontext.py, compute_oracle_significance.py,
+                 compute_oracle_fullcontext_threeway.py, eval_mem0_baseline.py,
+                 local_llm_server.py, calibrate_mem0_cost.py,
+                 compute_mem0_significance.py, run_all.sh, run_smoke.sh
 configs/         documented run parameters (not yet Hydra-wired, see docs/reproducibility.md)
 experiments/     main/ (5-seed sweep), ablation/ (encoder + hyperparameter),
                  joint/ (Week-5 fusion x seed sweep) -- resolved config +
                  checkpoint + metrics.json + log per run
 results/         tables/ (committed), raw/ (gitignored)
 docs/            architecture.md, benchmark_card.md, reproducibility.md, figures/
-tests/           test_censoring.py, test_survival_loss.py, and 5 new Week-6
-                 files (26 tests, see Week-6 section above) have real
-                 coverage; test_schema.py, test_features.py, ... are still
-                 empty stubs (pre-existing, not wired into any CI)
+tests/           test_censoring.py, test_survival_loss.py have real pre-existing
+                 coverage; 5 new Week-6 files add 26 more tests, and 5 more Week-6
+                 tests landed in the pre-existing test_qa_metrics.py (is_refusal,
+                 bleu1) -- 31 new tests this week, 51 in the whole suite total;
+                 test_schema.py, test_features.py, ... are still empty stubs
+                 (pre-existing, not wired into any CI)
 ```
 
 Full recommended tree and checklist mapping: `docs/repo_structure_reference.md`.

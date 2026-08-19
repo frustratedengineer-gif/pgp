@@ -21,6 +21,10 @@ grey = existing components (off-the-shelf models), green = learned modules
 | Configurable TTL cutoff (`quantile_ttl_days`, was hardcoded at the survival curve's median) | Fix #1 -- the median is a coin-flip cutoff by construction, not something C-index (rank-only) ever validates | **Built** (Week 6) | `src/memorylife/inference/pipeline.py` |
 | Evidence-retention root-cause diagnostic (free, no LLM calls) | Isolates eviction-policy quality from LLM-answering noise via pure set membership against gold QA evidence | **Built** (Week 6), covers both LoCoMo and LongMemEval | `scripts/diagnose_eviction_evidence.py` |
 | Downstream significance / mechanistic / judge-scoring / qualitative-tracing scripts | Bootstrap CI+p-value on the EM/F1 claims, AUC of `utility_prob`/`predicted_ttl_days` predicting QA-evidence relevance, LLM-judge rescoring, traced before/after examples | **Built** (Week 6) | `src/memorylife/evaluation/downstream_significance.py`, `scripts/analyze_utility_signal.py`, `scripts/judge_downstream_qa.py`, `scripts/qualitative_examples.py` |
+| Refusal/hallucination evaluation on LoCoMo's adversarial questions | Does eviction cause hallucination against the decoy answer, or honest refusal? | **Built** (Week 6, reviewer gap) | `scripts/eval_refusal.py`, `scripts/compute_refusal_significance.py` |
+| Systematic error-mode taxonomy + per-question-type breakdown | 100-sample manual categorization of wrong predictions; EM/F1/judge sliced by LoCoMo category / LongMemEval question_type | **Built** (Week 6, reviewer gap) | `scripts/categorize_error_sample.py`, `scripts/breakdown_by_question_type.py` |
+| Oracle / Full-Context reference points | Is `no_forget` actually the ceiling, or does ordinary top-5 retrieval itself cost accuracy independent of eviction? | **Built** (Week 6, reviewer gap) -- finding: `no_forget` is NOT the true ceiling on LoCoMo (p<0.01) | `scripts/eval_oracle_fullcontext.py`, `scripts/compute_oracle_significance.py`, `scripts/compute_oracle_fullcontext_threeway.py` |
+| Real Mem0 baseline (local-LLM-indexed) | End-to-end comparison against an actual competing memory system, not just our own policies against each other | **Built** (Week 6, reviewer gap #1) -- statistically tied with `ours_utility`/`no_forget`/`lru` (p>0.13), significantly beats `fifo`/`ours` | `baselines/mem0_wrapper.py`, `scripts/eval_mem0_baseline.py`, `scripts/local_llm_server.py`, `scripts/calibrate_mem0_cost.py`, `scripts/compute_mem0_significance.py` |
 
 ## What Week 3 actually is, precisely
 
@@ -108,3 +112,22 @@ traced 8 concrete evicted-evidence-memory -> wrong-answer -> fixed-by-
 keeping-it examples; the evidence-retention diagnostic was extended to
 LongMemEval after an earlier claim that it had no evidence linkage turned
 out to be untested and wrong (see `docs/reproducibility.md`).
+
+A later reviewer-gap pass (comparing this project against REMem, ICLR
+2026) added five more pieces, all summarized in full in `README.md`'s
+Week-6 section and `paper/draft.md` Sections 6.11-6.15 -- not repeated
+here in detail to avoid drift between three copies of the same numbers,
+just pointed to: (1) refusal/hallucination evaluation on LoCoMo's
+adversarial questions, finding false refusal is the dominant failure
+mode (54% of sampled errors); (2) a systematic 100-sample error-mode
+taxonomy; (3) a per-question-type breakdown showing the Fix #2
+improvement is concentrated on Single-Hop/Multi-Hop questions, not
+uniform; (4) Oracle/Full-Context reference points showing `no_forget` is
+NOT the true achievable ceiling -- an oracle given only correct evidence
+significantly beats it (p<0.01) -- meaning retrieval quality is a real,
+separate bottleneck this project's eviction-policy work never
+addressed; and (5) a genuine Mem0 baseline comparison, indexed via a
+free local Qwen2.5-7B server after a real cost calibration showed the
+GPT-4o path would cost ~$62 (`results/tables/week6_mem0_cost_calibration.md`),
+finding Mem0 statistically tied with this project's best policy, not
+worse.
