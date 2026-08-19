@@ -37,20 +37,45 @@ against `llm_token_usage.md` -- Week-4 experiments (multi-seed reruns,
 paraphrase consistency checks) re-query the same records repeatedly, and
 re-billing OpenRouter for an identical prompt every time would be wasteful.
 
-## Not yet implemented (downstream memory-system comparison)
+## Implemented (Week 6 -- downstream memory-system comparison)
 
-`no_forget.py`, `fifo.py`, `lru.py`, `generative_agents_importance.py`,
-`mem0_wrapper.py`, `memgpt_wrapper.py`, `locomo.py`, `longmemeval.py` are
-placeholders for the end-to-end QA-accuracy-vs-memory-size comparison
-(architecture diagram's downstream retrieval/LLM box), not the Week-3
-survival-prediction comparison. They compare storage/forgetting *policies*
-against OUR forgetting policy (Week 5:
-`src/memorylife/memory/forgetting.py`, driven by the Lifetime + Action
-heads), not lifetime *predictions* against each other. The memory store
-(`src/memorylife/memory/`) and retriever (`src/memorylife/retrieval/`)
-these depend on ARE now built (Week 5, see `docs/architecture.md`) -- what's
-missing is specifically the comparison baselines themselves (reimplementing
-FIFO/LRU/no-forget, or wrapping mem0/MemGPT) and the QA-accuracy-vs-size
-harness to run them through. Commit hashes / versions of any wrapped
-third-party systems (mem0, MemGPT) will be recorded here once those files
-have real content.
+Corrected here, since this section was stale through most of Week 6:
+`no_forget.py`, `fifo.py`, and `lru.py` ARE implemented -- standalone
+`sweep(store, audit_log, capacity, **kwargs) -> list[str]` functions
+(matching the shape `fifo.py` above shows) that forget by capacity, using
+the real memory store/audit log from `src/memorylife/memory/`. The actual
+downstream QA-accuracy comparison harness
+(`scripts/run_downstream_qa_eval.py`) reimplements the same three
+policies' selection logic directly as pure set/ranking functions
+(`final_active_ids`, see `docs/architecture.md` Appendix A.2 in
+`paper/draft.md`) rather than calling these `sweep()` functions, since
+the harness needs "what's the final active set" not "what got evicted in
+this one sweep step" -- both exist, are consistent with each other, and
+`final_active_ids` is the one every reported EM/F1/significance number
+actually traces to (`results/tables/week6_downstream_qa*.md`).
+
+`mem0_wrapper.py` is also implemented (Week 6, reviewer gap #1) -- a real
+integration of Mem0 (Chhikara et al., 2025), configured to route its own
+LLM extraction calls through either OpenRouter/GPT-4o or (the path
+actually used for the full 10-conversation LoCoMo comparison, after a
+real cost calibration showed the GPT-4o path would cost ~$62) a local
+Qwen2.5-7B-Instruct server (`scripts/local_llm_server.py`). See the
+module's own docstring for the disclosed limitations (no working
+timestamp parameter in Mem0 OSS, a measured 3.3% JSON-parse failure rate
+on the local model) and `README.md`'s "A real memory-system baseline:
+Mem0" section / `paper/draft.md` Section 6.15 for the full results.
+
+## Still not implemented
+
+`generative_agents_importance.py`, `memgpt_wrapper.py`, `locomo.py`, and
+`longmemeval.py` remain empty placeholders. The first two would be
+further real memory-system baselines (Generative Agents' importance
+scoring, MemGPT) alongside Mem0 -- not attempted this project given the
+real cost/integration effort Mem0 alone took (see `scripts/
+calibrate_mem0_cost.py` and MemGPT's own heavier agent-server
+architecture, harder to stand up than Mem0's library-call interface).
+`locomo.py`/`longmemeval.py` here would be baseline-style wrappers around
+those benchmarks specifically -- distinct from (and not to be confused
+with) `src/memorylife/data/build_benchmark.py`'s `load_locomo_qa`/
+`load_longmemeval_qa`, which ARE implemented and are what
+`scripts/run_downstream_qa_eval.py` actually uses.
