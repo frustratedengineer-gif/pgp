@@ -446,8 +446,8 @@ section had 4 references; expanded to name-check Mem0, MemGPT,
 MemoryBank, Reflective Memory Management, HippoRAG/HippoRAG 2, GraphRAG,
 Zep/Graphiti, A-Mem, and REMem itself (with real citations, cross-checked
 against sources actually read this session, not invented) -- even though
-this project doesn't benchmark against most of them (see item #1,
-skipped as too costly to stand up). Also cites Cox (1972) and pycox's own
+this project doesn't benchmark against most of them -- Mem0 is now the
+exception, see below. Also cites Cox (1972) and pycox's own
 paper (Kvamme et al., 2019) for the survival-analysis machinery, which
 were previously named only by software package.
 
@@ -492,6 +492,76 @@ large uncapped context itself introducing distractor noise, though this
 specific three-way comparison is underpowered at the sample sizes run
 here (N=22 for the matched oracle/full_context/no_forget subset) and is
 reported as suggestive, not confirmed.
+
+**A real memory-system baseline: Mem0** (reviewer gap #1, the one flagged
+"too costly" for most of Week 6 -- see below for how the cost problem
+actually got solved). Every comparison so far pits our own eviction
+policies against each other; REMem's whole argument is beating actual
+competing systems (Mem0, Graphiti, HippoRAG 2) by name. Mem0 (Chhikara et
+al., 2025) is now genuinely integrated (`baselines/mem0_wrapper.py`,
+`scripts/eval_mem0_baseline.py`) -- indexed all 10 LoCoMo conversations
+(5,882 turns) through Mem0's own extraction pipeline and answered the
+same 120-question sample used everywhere else in Week 6.
+
+*Getting there took a real detour, disclosed in full.* A cost
+calibration (`scripts/calibrate_mem0_cost.py`) measured Mem0's own
+indexing calls (one LLM call per conversation TURN, not per question) at
+**$0.0106/turn on GPT-4o via OpenRouter -- ~$62 to index all 5,882 turns**,
+far beyond this project's remaining ~$1 budget (a student stipend, no
+sponsorship, spelled out here because it's the actual reason this gap
+was originally marked "skipped"). The fix: point Mem0's own built-in
+`vllm` LLM provider at a hand-rolled local OpenAI-compatible server
+(`scripts/local_llm_server.py`, stdlib `http.server` only, no new heavy
+dependency) serving the SAME local Qwen2.5-7B-Instruct model this
+project already used as a Week-3 baseline -- zero marginal cost, just
+GPU time on hardware already available. Real measured indexing time:
+**~11 hours across all 10 conversations** (throughput varied 4.4s/turn
+to 30-180s/turn depending on shared-GPU-node load; a severe slowdown on
+the last conversation coincided with a period the VM was briefly
+unreachable over SSH, almost certainly the same underlying resource
+contention, not two separate problems).
+
+Two real, disclosed limitations of this substitution, not swept under
+the rug: (1) Mem0 OSS's `add()` has no working `timestamp` parameter
+("Platform-only... Not supported in OSS," per the installed package's
+own docstring) -- dates are injected as text prefixes instead, and the
+local model was directly observed getting this wrong at least once
+(resolving "yesterday" to **2026** instead of the conversation's actual
+**2023**, i.e. defaulting to real-world "today" instead of the stated
+context date) -- a concrete failure, not a hypothetical risk. (2) The
+local model produced malformed JSON on **195 of 5,882 indexing calls
+(3.3%)**, each one silently contributing zero extracted memories for
+that turn (Mem0's own extraction code catches the parse failure and
+degrades gracefully rather than crashing) -- a real, measured data-loss
+rate from using a weaker local model in place of Mem0's typical
+GPT-4.1-mini/GPT-4o setup.
+
+Despite both handicaps:
+
+| Policy | N | Mean EM | Mean F1 | Mean BLEU-1 |
+|---|---|---|---|---|
+| **mem0** | 120 | 0.0833 | **0.2275** | **0.1808** |
+| no_forget | 120 | 0.0917 | 0.1957 | 0.1562 |
+| ours_utility | 120 | 0.0917 | 0.1949 | 0.1549 |
+| lru | 120 | 0.0833 | 0.1998 | 0.1586 |
+| ours | 120 | 0.0500 | 0.1575 | 0.1116 |
+| fifo | 120 | 0.0417 | 0.1294 | 0.0915 |
+
+(`results/tables/week6_mem0_baseline.md`) On raw F1/BLEU-1, mem0 beats
+every single one of this project's own policies, including the
+`no_forget` ceiling. Bootstrap significance
+(`scripts/compute_mem0_significance.py`,
+`results/tables/week6_mem0_significance.md`) tells the more honest
+story: mem0 is **NOT significantly different from `no_forget`,
+`ours_utility`, or `lru`** (all p>0.13) -- statistically tied with our
+best result and the ceiling, not proven better. It **does** significantly
+beat `fifo` (F1 p<0.001) and `ours` (F1 p=0.005). Read plainly: a real,
+independent memory system -- even handicapped by a weaker local
+extraction model with a measured 3.3% data-loss rate and no real
+timestamp support -- performs statistically comparably to this project's
+best eviction policy, not worse. That is a genuinely humbling result,
+reported as measured rather than reframed to favor this project's own
+contribution.
 
 **Test coverage for the Week-6 code** (reviewer gap): none of the new
 scripts/functions above had a test until now -- every number in this

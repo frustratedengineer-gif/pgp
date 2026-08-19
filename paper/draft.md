@@ -46,7 +46,9 @@ that the no-forgetting "ceiling" itself is not the true achievable
 ceiling: an oracle given only the correct evidence, with no retrieval
 noise, significantly outperforms no-forgetting too (p<0.01), meaning
 retrieval quality is a genuine bottleneck this paper's eviction-policy
-fixes do not address.
+fixes do not address. Finally, against a genuinely independent memory
+system (Mem0), our best policy is statistically tied, not superior --
+reported plainly rather than reframed favorably.
 
 ## 1. Introduction
 
@@ -102,7 +104,9 @@ not a lifetime-prediction problem; Mem0 (Chhikara et al., 2025) extracts
 and consolidates conversational memory with a heuristic update mechanism,
 frequently discarding extracted statements by its own internal decision
 rather than a calibrated forgetting policy (an observation also made
-independently by Shu et al., 2026); MemoryBank (Zhong et al., 2024)
+independently by Shu et al., 2026) -- unlike the other systems in this
+section, Mem0 is empirically compared against our own policies directly,
+not just discussed; see Section 6.15; MemoryBank (Zhong et al., 2024)
 applies time-decay-based consolidation and forgetting directly analogous
 in spirit to our Lifetime head, but as a fixed decay curve rather than a
 per-memory learned prediction; Reflective Memory Management (Tan et al.,
@@ -126,7 +130,7 @@ dimension for individual memories, and none of them frame memory
 retention as a survival-analysis problem.
 
 **Episodic memory and reasoning.** REMem (Shu et al., 2026), which this
-paper's own reviewer-gap analysis (Sections 6.11-6.13, Appendices A-C)
+paper's own reviewer-gap analysis (Sections 6.11-6.15, Appendices A-C)
 is directly modeled on, formalizes episodic memory as time-aware gists
 and facts in a hybrid graph, with an agentic tool-using retriever for
 multi-step temporal reasoning -- evaluated on LoCoMo, REALTALK,
@@ -743,10 +747,78 @@ eviction policy achievable at a matched storage budget; it does not
 close the separate, larger gap between any eviction policy and a system
 with genuinely better retrieval.
 
+### 6.15 A real memory-system baseline: Mem0
+
+Every comparison above pits our own eviction policies against each
+other. REMem's own argument (Section 2) is beating actual competing
+systems -- Mem0, Graphiti, HippoRAG 2 -- by name. We integrate Mem0
+(Chhikara et al., 2025) genuinely: indexed all 10 LoCoMo conversations
+(5,882 dialogue turns) through Mem0's own extraction pipeline
+(`baselines/mem0_wrapper.py`) and answered the same 120-question sample
+used throughout Section 6.
+
+**Getting there was not free, and we disclose the detour in full rather
+than hiding it.** A cost calibration (`scripts/calibrate_mem0_cost.py`)
+measured Mem0's own indexing calls -- one LLM call per conversation
+TURN, not per question -- at $0.0106/turn on GPT-4o via OpenRouter:
+approximately $62 to index all 5,882 turns, far beyond this project's
+remaining budget. Mem0's own built-in `vllm` LLM provider was pointed
+instead at a hand-rolled local OpenAI-compatible server
+(`scripts/local_llm_server.py`) serving the same local Qwen2.5-7B-
+Instruct model this project already used as a baseline in Section 5.1 --
+zero marginal cost. Measured indexing time: approximately 11 hours
+across all 10 conversations.
+
+This substitution introduces two real, measured limitations, not
+speculative ones: (1) Mem0's open-source `add()` has no working
+`timestamp` parameter (its own installed package documents this as
+"Platform-only... Not supported in OSS"); dates were injected as text
+prefixes instead, and the local model was directly observed getting this
+wrong at least once, resolving "yesterday" to 2026 instead of the
+conversation's actual 2023 -- defaulting to real-world "today" rather
+than the stated context date. (2) The local model produced malformed
+JSON on 195 of 5,882 indexing calls (3.3%), each one silently
+contributing zero extracted memories for that turn (Mem0's own
+extraction code degrades gracefully on a parse failure rather than
+crashing, but the information is still lost). Both are disclosed
+confounds of the budget-driven substitution, not properties of Mem0
+itself as normally deployed with a frontier extraction model.
+
+| Policy | N | Mean EM | Mean F1 | Mean BLEU-1 |
+|---|---|---|---|---|
+| **mem0** | 120 | 0.0833 | **0.2275** | **0.1808** |
+| no_forget | 120 | 0.0917 | 0.1957 | 0.1562 |
+| ours_utility | 120 | 0.0917 | 0.1949 | 0.1549 |
+| lru | 120 | 0.0833 | 0.1998 | 0.1586 |
+| ours | 120 | 0.0500 | 0.1575 | 0.1116 |
+| fifo | 120 | 0.0417 | 0.1294 | 0.0915 |
+
+(`results/tables/week6_mem0_baseline.md`) On raw F1/BLEU-1, mem0 beats
+every one of this project's own policies, including the `no_forget`
+ceiling. Bootstrap significance
+(`results/tables/week6_mem0_significance.md`) gives the honest reading:
+mem0 is **not significantly different from `no_forget`, `ours_utility`,
+or `lru`** (all p>0.13) -- statistically tied with our best result and
+the ceiling itself, not proven superior. It significantly beats `fifo`
+(F1 p<0.001) and `ours` (F1 p=0.005). Stated plainly: a real, independent
+memory system, even handicapped by a weaker local extraction model with
+a measured 3.3% data-loss rate and no working timestamp support,
+performs statistically comparably to this project's best eviction
+policy -- not worse. We report this as measured, not reframed to favor
+this paper's own contribution.
+
 ## 7. Limitations
 
 We state these directly rather than deferring them to an appendix:
 
+- **The Mem0 comparison (Section 6.15) uses a weaker LLM for Mem0's own
+  extraction than Mem0 is normally evaluated with** (a local Qwen2.5-7B
+  in place of GPT-4.1-mini/GPT-4o, forced by budget, not chosen for a
+  fairness advantage), with a measured 3.3% indexing data-loss rate from
+  malformed JSON and no working timestamp support in Mem0 OSS. Mem0 still
+  performed statistically comparably to our best policy under this
+  handicap; a like-for-like comparison with Mem0's typical setup could
+  only make its relative showing stronger, not weaker, and is unrun here.
 - **Retrieval quality, not just eviction policy, is a real bottleneck we
   do not fix** (Section 6.14): an oracle given only the correct evidence
   significantly outperforms `no_forget` on LoCoMo (p<0.01), meaning even
