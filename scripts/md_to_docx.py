@@ -157,15 +157,29 @@ def main():
                 i += 1
                 if i < len(lines) and not lines[i].strip().startswith(">") and lines[i].strip() != "":
                     break
-            p = doc.add_paragraph()
-            p.paragraph_format.left_indent = Inches(0.4)
-            for j, ql in enumerate(quote_lines):
-                if j > 0:
-                    p.add_run().add_break()
-                run = p.add_run(ql if ql else " ")
-                run.font.name = "Consolas"
-                run.font.size = Pt(9.5)
-                run.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
+            # split on blank-line markers into separate readable paragraphs
+            groups, current = [], []
+            for ql in quote_lines:
+                if ql == "":
+                    if current:
+                        groups.append(current)
+                        current = []
+                else:
+                    current.append(ql)
+            if current:
+                groups.append(current)
+            for group in groups:
+                p = doc.add_paragraph()
+                p.paragraph_format.left_indent = Inches(0.35)
+                p.paragraph_format.space_after = Pt(8)
+                for j, ql in enumerate(group):
+                    if j > 0:
+                        p.add_run().add_break()
+                    add_inline_runs(p, ql)
+                for run in p.runs:
+                    run.font.italic = True
+                    run.font.size = Pt(11.5)
+                    run.font.color.rgb = RGBColor(0x2b, 0x2b, 0x2b)
             continue
 
         # Unordered list
