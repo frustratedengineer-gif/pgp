@@ -615,7 +615,7 @@ YAML) and generating a failure email, discovered only when the emails
 became impossible to ignore. Deleted rather than left empty, since an
 empty workflow file is worse than no workflow file at all: it fails
 loudly for no reason instead of just not existing. There is still no CI
-actually running any of these 46 tests on push -- flagging honestly
+actually running any of these 51 tests on push -- flagging honestly
 rather than letting "we have tests" imply "tests run automatically."
 
 ## Repo map

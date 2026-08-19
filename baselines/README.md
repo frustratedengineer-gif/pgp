@@ -65,6 +65,15 @@ timestamp parameter in Mem0 OSS, a measured 3.3% JSON-parse failure rate
 on the local model) and `README.md`'s "A real memory-system baseline:
 Mem0" section / `paper/draft.md` Section 6.15 for the full results.
 
+**Reproducibility gap, disclosed rather than silently left out**: this
+baseline needs `pip install mem0ai qdrant-client` (versions actually used:
+mem0ai 2.0.18, qdrant-client 1.19.0), installed ad hoc for this one
+baseline and NOT part of `requirements.txt`'s pinned core environment
+(that lockfile covers the survival/joint-model reproduction; the Mem0
+comparison was a later, separate addition on top of the same venv). If
+you're reproducing this specific baseline from a clean install, run that
+`pip install` first.
+
 ## Still not implemented
 
 `generative_agents_importance.py`, `memgpt_wrapper.py`, `locomo.py`, and
