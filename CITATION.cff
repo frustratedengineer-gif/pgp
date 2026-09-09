@@ -4,7 +4,7 @@
 # write-up is submitted somewhere with its own venue/DOI.
 cff-version: 1.2.0
 message: "If you use this benchmark or model, please cite it as below."
-title: "MemoryLifeBench: Memory Lifetime Prediction as a Time-to-Event Problem"
+title: "MemoryLifeBench: From Lifetime Prediction to Utility-Ranked Memory Eviction"
 authors:
   - family-names: "Shendge"
     given-names: "Bhargav"

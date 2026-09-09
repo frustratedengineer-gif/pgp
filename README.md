@@ -150,7 +150,7 @@ reasoning in the prompt, the LLM flags the ambiguity rather than guessing
 wrong -- a real limitation, documented in `docs/reproducibility.md`, not
 hidden.
 
-## Week-6: does the ranking win actually help downstream QA? (in progress)
+## Week-6: does the ranking win actually help downstream QA?
 
 Weeks 3-5 validated our lifetime model with C-index -- a metric that only
 checks whether the model RANKS relative memory lifetimes correctly, never
@@ -618,6 +618,62 @@ loudly for no reason instead of just not existing. There is still no CI
 actually running any of these 51 tests on push -- flagging honestly
 rather than letting "we have tests" imply "tests run automatically."
 
+## Week-7: closing the remaining honesty gaps
+
+Week 6 left several things explicitly open in the Limitations section
+rather than rounded away. Week 7 closes three of them, with no new LLM
+calls or trained models -- all free, deterministic checks against
+already-extracted data.
+
+**Judge-metric bootstrap significance** (`scripts/compute_judge_significance.py`,
+`results/tables/week6_judge_significance.md`): Section 6.8's LLM-judge
+rescoring was reported as a raw mean only. Applying the same paired
+bootstrap (10,000 resamples) used for the EM/F1 headline claims to the
+judge field confirms rather than overturns that story: `ours_utility`
+significantly beats `fifo` (+0.1671, 95% CI [+0.0833, +0.2500], p<0.001)
+and `ours` (+0.1505, 95% CI [+0.0750, +0.2333], p<0.001), and remains
+statistically tied with `no_forget` (p=0.269) and `lru` (p=0.421) on
+LoCoMo.
+
+**Recency-skew hypothesis, tested directly** (`scripts/analyze_evidence_recency_skew.py`,
+`results/tables/week7_evidence_recency_skew.md`): Section 6.4's residual
+gap between `ours` and `lru`/`fifo` at every TTL quantile had motivated a
+working hypothesis -- that LoCoMo's QA evidence is itself recency-skewed,
+mechanically favoring recency-based selection. Tested directly (unpaired
+bootstrap, 10,000 resamples, all 2,536 LoCoMo memories) and **found
+significantly refuted, in the reversed direction**: evidence-linked
+memories are on average *older* than non-evidence memories (104.2 vs.
+97.3 days, 95% CI on the gap [-12.78, -1.02], p=0.01), not younger. This
+rules out recency-skew as the explanation; if anything `lru` wins despite
+working against, not with, this mild anti-recency skew -- strengthening
+the structural (ranking-mechanism) explanation in Section 6.5 instead of
+undermining it.
+
+**Full-coverage label-consistency audit** (`scripts/audit_label_consistency.py`,
+`results/tables/week7_label_consistency_audit.md`): recomputes every
+record's `duration_days` from raw timestamps under the Section 3.3
+censoring rules and flags mismatches. All 10,152 records audited (not a
+sample). 4.63% (470/10,152) mismatch, all in LongMemEval, none in LoCoMo
+or synthetic. 449 of those match a floor-clamp pattern or are within 1
+day; the remaining 21 (0.21% of the full dataset) have a genuine,
+unexplained gap up to 53.2 days that reverse-engineering the unreleased
+extraction pipeline would be needed to resolve -- reported rather than
+rounded away. Also disclosed rather than silently fixed: the audit
+script's own first version used the wrong reference timestamp for
+LongMemEval, initially showing a spurious 25.6% mismatch rate before the
+bug was caught and fixed (see the file's own process note for the full
+trace).
+
+**Human-judgment spot-check, prepared but not completed**
+(`scripts/sample_for_human_validation.py`, `results/tables/week7_human_validation_sample.csv`):
+a stratified 45-record sample (15 each from LoCoMo, LongMemEval,
+synthetic), with source dialogue text joined in for LoCoMo/synthetic
+records so a rater can compare the extracted memory against what was
+actually said. The `looks_correct_yes_no`/`notes_if_no` columns are left
+blank for a real person to fill in -- this remains an open gap, not a
+closed one; reporting agreement statistics from an unfilled sample would
+misrepresent what kind of check this is.
+
 ## Repo map
 
 ```
@@ -644,7 +700,10 @@ scripts/         thin CLIs: preprocess.py, train.py, run_baseline.py, evaluate.p
                  eval_oracle_fullcontext.py, compute_oracle_significance.py,
                  compute_oracle_fullcontext_threeway.py, eval_mem0_baseline.py,
                  local_llm_server.py, calibrate_mem0_cost.py,
-                 compute_mem0_significance.py, run_all.sh, run_smoke.sh
+                 compute_mem0_significance.py, run_all.sh, run_smoke.sh,
+                 compute_judge_significance.py (Week-7), analyze_evidence_recency_skew.py
+                 (Week-7), audit_label_consistency.py (Week-7), sample_for_human_validation.py
+                 (Week-7)
 configs/         documented run parameters (not yet Hydra-wired, see docs/reproducibility.md)
 experiments/     main/ (5-seed sweep), ablation/ (encoder + hyperparameter),
                  joint/ (Week-5 fusion x seed sweep) -- resolved config +
